@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
 export default function Login({ onLogin }) {
-  const [email, setEmail] = useState('proveedor@spondytravel.com');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('admin@spondy.com');
+  const [password, setPassword] = useState('admin123');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {

@@ -1,14 +1,18 @@
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, Numeric
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy import create_engine, Column, Integer, String, Numeric, Boolean, ForeignKey, Text, TIMESTAMP
+from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 
 # 1. Configuración de la Base de Datos (Conectando a tu PostgreSQL en Docker)
 DATABASE_URL = "postgresql://spondy_admin:spondy_password@localhost:5432/spondy_travel_db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# Crear las tablas si no existen
+Base.metadata.create_all(bind=engine)
 
 # 2. Modelos de Base de Datos (Mapean tu init.sql)
 class User(Base):
@@ -17,6 +21,19 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     password = Column(String)
     role = Column(String)
+    is_verified = Column(Boolean, default=False)
+    provider_detail = relationship("ProviderDetail", back_populates="user", uselist=False)
+
+class ProviderDetail(Base):
+    __tablename__ = "provider_details"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    business_name = Column(String)
+    tax_id = Column(String, unique=True)
+    phone = Column(String)
+    address = Column(Text)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    user = relationship("User", back_populates="provider_detail")
 
 class TourService(Base):
     __tablename__ = "services"
@@ -32,6 +49,15 @@ class TourService(Base):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class ProviderResponse(BaseModel):
+    id: int
+    email: str
+    business_name: str
+    tax_id: str
+
+class ApproveRequest(BaseModel):
+    status: bool
 
 # 4. Inicializar FastAPI
 app = FastAPI(title="Spondy Travel API")
@@ -68,4 +94,34 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 def get_services(provider_id: int, db: Session = Depends(get_db)):
     # Traemos los servicios quemados de ese proveedor
     services = db.query(TourService).filter(TourService.provider_id == provider_id).all()
+    return services
+
+@app.get("/api/admin/pending-providers")
+def get_pending_providers(db: Session = Depends(get_db)):
+    # Get all users with role 'PROVIDER' and is_verified False, join with provider_details
+    providers = db.query(User).join(ProviderDetail).filter(User.role == 'PROVIDER', User.is_verified == False).all()
+    result = []
+    for user in providers:
+        if user.provider_detail:
+            result.append(ProviderResponse(
+                id=user.id,
+                email=user.email,
+                business_name=user.provider_detail.business_name,
+                tax_id=user.provider_detail.tax_id
+            ))
+    return result
+
+@app.put("/api/admin/verify-provider/{user_id}")
+def verify_provider(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id, User.role == 'PROVIDER').first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    user.is_verified = True
+    db.commit()
+    return {"message": "Provider verified successfully"}
+
+@app.get("/api/services")
+def get_verified_services(db: Session = Depends(get_db)):
+    # Get services from verified providers
+    services = db.query(TourService).join(User, TourService.provider_id == User.id).filter(User.is_verified == True).all()
     return services

@@ -49,8 +49,8 @@ INSERT INTO provider_details (user_id, business_name, tax_id, phone, address) VA
 
 -- Insertar servicios de prueba vinculados a los proveedores
 INSERT INTO services (provider_id, name, description, price, image_url, status) VALUES 
-(2, 'Habitación Matrimonial Vista al Mar', 'Habitación amplia con balcón y desayuno incluido.', 85.00, 'https://ejemplo.com/habitacion.jpg', 'Activo'),
-(2, 'Tour de Snorkel', 'Tour guiado de 3 horas por los arrecifes locales.', 35.00, 'https://ejemplo.com/snorkel.jpg', 'Activo'),
-(3, 'Excursión de Montaña', 'Trekking de día completo con guía y almuerzo incluido.', 55.00, 'https://ejemplo.com/montana.jpg', 'Activo'),
-(4, 'Safari en la Selva', 'Ruta de 2 días por la selva con avistamiento de fauna.', 120.00, 'https://ejemplo.com/selva.jpg', 'Activo'),
-(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://ejemplo.com/surf.jpg', 'Activo');
+(2, 'Habitación Matrimonial Vista al Mar', 'Habitación amplia con balcón y desayuno incluido.', 85.00, 'https://images.unsplash.com/photo-1776761603930-e4509e386fbf?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Activo'),
+(2, 'Tour de Snorkel', 'Tour guiado de 3 horas por los arrecifes locales.', 35.00, 'https://plus.unsplash.com/premium_photo-1716999413705-44286906c6c2?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Activo'),
+(3, 'Excursión de Montaña', 'Trekking de día completo con guía y almuerzo incluido.', 55.00, 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Activo'),
+(4, 'Safari en la Selva', 'Ruta de 2 días por la selva con avistamiento de fauna.', 120.00, 'https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2068&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Activo'),
+(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Activo');

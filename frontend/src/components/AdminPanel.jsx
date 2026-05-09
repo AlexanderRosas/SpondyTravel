@@ -31,7 +31,6 @@ const AdminPanel = ({ user, onLogout }) => {
         method: 'PUT',
       });
       if (!response.ok) throw new Error('No se pudo aprobar el proveedor');
-      // Remove from list
       setProviders(providers.filter(p => p.id !== provider.id));
     } catch (err) {
       setError(err.message);
@@ -40,19 +39,17 @@ const AdminPanel = ({ user, onLogout }) => {
     }
   };
 
+  const userName = user.full_name || user.name || user.email;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
           <div>
             <h1 className="text-2xl font-bold text-indigo-600">Spondy Travel</h1>
-            <p className="text-xs text-gray-500">Panel de Administración</p>
+            <p className="text-sm text-gray-500">Panel de Administración — {userName}</p>
           </div>
           <div className="flex items-center gap-6">
-            <span className="text-sm text-gray-600">
-              <span className="font-medium">{user.email}</span>
-            </span>
             <button 
               onClick={onLogout} 
               className="text-sm bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800
@@ -65,15 +62,12 @@ const AdminPanel = ({ user, onLogout }) => {
         </div>
       </nav>
 
-      {/* Content */}
       <main className="max-w-7xl mx-auto px-6 py-12">
-        {/* Header Section */}
         <div className="mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Proveedores Pendientes de Aprobación</h2>
           <p className="text-gray-600">Revisa y aprueba los nuevos proveedores que desean unirse a Spondy Travel</p>
         </div>
 
-        {/* Error State */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex gap-3">
             <XCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -81,7 +75,6 @@ const AdminPanel = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* Loading State */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16">
             <svg className="animate-spin h-12 w-12 text-indigo-600 mb-4" viewBox="0 0 24 24">
@@ -101,36 +94,25 @@ const AdminPanel = ({ user, onLogout }) => {
             {providers.map((provider) => (
               <div 
                 key={provider.id}
-                className="bg-white border border-slate-200 rounded-2xl p-6 
-                  hover:border-slate-300 hover:shadow-md transition-all duration-300"
+                className="bg-white border border-slate-200 rounded-2xl p-6 hover:border-slate-300 hover:shadow-md transition-all duration-300"
               >
-                {/* Provider Info */}
                 <div className="mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">
-                    {provider.business_name}
-                  </h3>
-                  
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">{provider.business_name}</h3>
                   <div className="space-y-3">
                     <div>
                       <p className="text-xs text-gray-500 font-medium mb-1">Correo Electrónico</p>
                       <p className="text-sm text-gray-700 break-all">{provider.email}</p>
                     </div>
-                    
                     <div>
                       <p className="text-xs text-gray-500 font-medium mb-1">RUC/NIT</p>
                       <p className="text-sm font-mono text-gray-700">{provider.tax_id}</p>
                     </div>
                   </div>
                 </div>
-
-                {/* Action Button */}
                 <button
                   onClick={() => approveProvider(provider)}
                   disabled={approving === provider.id}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed
-                    text-white font-medium py-3 px-4 rounded-xl transition-all duration-200
-                    focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
-                    active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 active:scale-95 flex items-center justify-center gap-2"
                   aria-label={`Aprobar proveedor ${provider.business_name}`}
                 >
                   {approving === provider.id ? (

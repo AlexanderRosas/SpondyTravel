@@ -1,6 +1,8 @@
 -- Tabla de Usuarios
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255),
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL, -- 'ADMIN', 'PROVIDER', 'TRAVELER'
@@ -33,16 +35,21 @@ CREATE TABLE IF NOT EXISTS services (
     status VARCHAR(50) DEFAULT 'Activo'
 );
 
+-- Compatibilidad con bases existentes
+ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
+ALTER TABLE services ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+ALTER TABLE services ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+
 -- DATOS DE PRUEBA
-INSERT INTO users (email, password, role, is_verified) VALUES 
-('admin@spondy.com', 'admin123', 'ADMIN', TRUE),
-('proveedorAprobado@spondytravel.com', '123456', 'PROVIDER', TRUE),
-('proveedorAprobadoDos@spondytravel.com', '123456', 'PROVIDER', TRUE),
-('proveedorPendienteUno@spondytravel.com', '123456', 'PROVIDER', FALSE),
-('proveedorPendienteDos@spondytravel.com', '123456', 'PROVIDER', FALSE),
-('proveedorPendienteTres@spondytravel.com', '123456', 'PROVIDER', FALSE),
-('viajeroUno@spondytravel.com', '123456', 'TRAVELER', TRUE),
-('viajeroDos@spondytravel.com', '123456', 'TRAVELER', TRUE);
+INSERT INTO users (name, full_name, email, password, role, is_verified) VALUES 
+('Administrador', 'Admin Spondy', 'admin@spondy.com', 'admin123', 'ADMIN', TRUE),
+('Proveedor Aprobado', 'Proveedor Aprobado', 'proveedorAprobado@spondytravel.com', '123456', 'PROVIDER', TRUE),
+('Proveedor Aprobado Dos', 'Proveedor Aprobado Dos', 'proveedorAprobadoDos@spondytravel.com', '123456', 'PROVIDER', TRUE),
+('Proveedor Pendiente Uno', 'Proveedor Pendiente Uno', 'proveedorPendienteUno@spondytravel.com', '123456', 'PROVIDER', FALSE),
+('Proveedor Pendiente Dos', 'Proveedor Pendiente Dos', 'proveedorPendienteDos@spondytravel.com', '123456', 'PROVIDER', FALSE),
+('Proveedor Pendiente Tres', 'Proveedor Pendiente Tres', 'proveedorPendienteTres@spondytravel.com', '123456', 'PROVIDER', FALSE),
+('Viajero Uno', 'Christian Puchaicela', 'viajeroUno@spondytravel.com', '123456', 'TRAVELER', TRUE),
+('Viajero Dos', 'Viajero Dos', 'viajeroDos@spondytravel.com', '123456', 'TRAVELER', TRUE);
 
 INSERT INTO provider_details (user_id, business_name, tax_id, phone, address, city, category) VALUES 
 (2, 'Explora Ecuador S.A.', '1790001112001', '022555666', 'Amazonas y Shyris, Quito', 'Quito', 'Hospedaje'),
@@ -51,10 +58,14 @@ INSERT INTO provider_details (user_id, business_name, tax_id, phone, address, ci
 (5, 'Selva Turística Ecuador', '1790004445001', '099444555', 'Ruta de la Selva 12, Tena', 'Tena', 'Tours'),
 (6, 'Costa Caribe Tours', '1790005556001', '099777888', 'Malecón 200, Esmeraldas', 'Esmeraldas', 'Tours');
 
+-- Actualizar datos de prueba de full_name
+UPDATE users SET full_name = 'Admin Spondy' WHERE role = 'ADMIN';
+UPDATE users SET full_name = 'Christian Puchaicela' WHERE email = 'pendiente@turismo.com';
+
 -- Insertar servicios de prueba vinculados a los proveedores
 INSERT INTO services (provider_id, name, description, price, image_url, city, category, status) VALUES 
-(2, 'Habitación Matrimonial Vista al Mar', 'Habitación amplia con balcón y desayuno incluido.', 85.00, 'https://images.unsplash.com/photo-1776761603930-e4509e386fbf?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Hospedaje', 'Activo'),
-(2, 'Tour de Snorkel', 'Tour guiado de 3 horas por los arrecifes locales.', 35.00, 'https://plus.unsplash.com/premium_photo-1716999413705-44286906c6c2?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Tours', 'Activo'),
-(3, 'Excursión de Montaña', 'Trekking de día completo con guía y almuerzo incluido.', 55.00, 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Quito', 'Tours', 'Activo'),
-(4, 'Safari en la Selva', 'Ruta de 2 días por la selva con avistamiento de fauna.', 120.00, 'https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2068&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Tena', 'Tours', 'Activo'),
-(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Tours', 'Activo');
+(2, 'Habitación Matrimonial Vista al Mar', 'Habitación amplia con balcón y desayuno incluido.', 85.00, 'https://images.unsplash.com/photo-1776761603930-e4509e386fbf?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Alojamiento', 'Activo'),
+(2, 'Tour de Snorkel', 'Tour guiado de 3 horas por los arrecifes locales.', 35.00, 'https://plus.unsplash.com/premium_photo-1716999413705-44286906c6c2?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Actividad', 'Activo'),
+(3, 'Excursión de Montaña', 'Trekking de día completo con guía y almuerzo incluido.', 55.00, 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Quito', 'Actividad', 'Activo'),
+(4, 'Safari en la Selva', 'Ruta de 2 días por la selva con avistamiento de fauna.', 120.00, 'https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2068&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Tena', 'Actividad', 'Activo'),
+(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Actividad', 'Activo');

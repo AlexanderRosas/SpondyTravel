@@ -18,6 +18,8 @@ Base.metadata.create_all(bind=engine)
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    full_name = Column(String)
     email = Column(String, unique=True, index=True)
     password = Column(String)
     role = Column(String)
@@ -70,7 +72,9 @@ class SearchServiceResult(BaseModel):
     city: str | None = None
     category: str | None = None
     status: str
-    business_name: str  # From provider_details
+    provider_full_name: str
+    business_name: str | None = None
+
 class ApproveRequest(BaseModel):
     status: bool
 
@@ -103,7 +107,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     
-    return {"id": user.id, "email": user.email, "role": user.role}
+    return {"id": user.id, "email": user.email, "full_name": user.full_name or user.name, "role": user.role}
 
 @app.get("/api/provider/{provider_id}/services")
 def get_services(provider_id: int, db: Session = Depends(get_db)):
@@ -142,27 +146,28 @@ def get_verified_services(db: Session = Depends(get_db)):
     return services
 
 @app.get("/api/services/search", response_model=list[SearchServiceResult])
-def search_services(city: str = None, db: Session = Depends(get_db)):
+def search_services(city: str = None, category: str = None, max_price: float = None, db: Session = Depends(get_db)):
     """
-    Search for services by city (case-insensitive).
-    If no city is provided, returns all verified services.
-    Returns services with business_name from provider_details.
+    Search for services by city, category, and max price.
+    Returns only verified services and provider full name.
     """
-    query = db.query(TourService, ProviderDetail).join(
+    query = db.query(TourService, User, ProviderDetail).join(
         User, TourService.provider_id == User.id
     ).outerjoin(
         ProviderDetail, TourService.provider_id == ProviderDetail.user_id
     ).filter(User.is_verified == True)
     
-    # Apply city filter if provided
     if city:
         query = query.filter(TourService.city.ilike(f"%{city}%"))
+    if category:
+        query = query.filter(TourService.category.ilike(f"%{category}%"))
+    if max_price is not None:
+        query = query.filter(TourService.price <= max_price)
     
     results = query.all()
     
-    # Build response with business_name
     response = []
-    for service, provider in results:
+    for service, user, provider in results:
         response.append(SearchServiceResult(
             id=service.id,
             name=service.name,
@@ -172,7 +177,8 @@ def search_services(city: str = None, db: Session = Depends(get_db)):
             city=service.city,
             category=service.category,
             status=service.status,
-            business_name=provider.business_name if provider else "Unknown"
+            provider_full_name=user.full_name or user.name or user.email,
+            business_name=provider.business_name if provider else None
         ))
     
     return response

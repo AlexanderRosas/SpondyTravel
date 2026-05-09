@@ -20,6 +20,8 @@ export default function Dashboard({ user, onLogout }) {
       });
   }, [user.id]);
 
+  const userName = user.full_name || user.name || user.email;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Navbar */}
@@ -27,11 +29,11 @@ export default function Dashboard({ user, onLogout }) {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-indigo-600">Spondy Travel</h1>
-            <p className="text-xs text-gray-500">Panel de Proveedor</p>
+            <p className="text-xs text-gray-500">Panel de Proveedor — {userName}</p>
           </div>
           <div className="flex items-center gap-6">
             <span className="text-sm text-gray-600">
-              <span className="font-medium">{user.email}</span>
+              <span className="font-medium">{userName}</span>
             </span>
             <button 
               onClick={onLogout} 

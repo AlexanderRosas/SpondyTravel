@@ -32,6 +32,8 @@ class ProviderDetail(Base):
     tax_id = Column(String, unique=True)
     phone = Column(String)
     address = Column(Text)
+    city = Column(String, nullable=True)
+    category = Column(String, nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
     user = relationship("User", back_populates="provider_detail")
 
@@ -43,6 +45,8 @@ class TourService(Base):
     description = Column(String)
     price = Column(Numeric)
     image_url = Column(String)
+    city = Column(String, nullable=True)
+    category = Column(String, nullable=True)
     status = Column(String, default="Activo")
 
 # 3. Esquemas (Para recibir datos del Frontend)
@@ -56,6 +60,17 @@ class ProviderResponse(BaseModel):
     business_name: str
     tax_id: str
 
+
+class SearchServiceResult(BaseModel):
+    id: int
+    name: str
+    description: str
+    price: float
+    image_url: str
+    city: str | None = None
+    category: str | None = None
+    status: str
+    business_name: str  # From provider_details
 class ApproveRequest(BaseModel):
     status: bool
 
@@ -125,3 +140,39 @@ def get_verified_services(db: Session = Depends(get_db)):
     # Get services from verified providers
     services = db.query(TourService).join(User, TourService.provider_id == User.id).filter(User.is_verified == True).all()
     return services
+
+@app.get("/api/services/search", response_model=list[SearchServiceResult])
+def search_services(city: str = None, db: Session = Depends(get_db)):
+    """
+    Search for services by city (case-insensitive).
+    If no city is provided, returns all verified services.
+    Returns services with business_name from provider_details.
+    """
+    query = db.query(TourService, ProviderDetail).join(
+        User, TourService.provider_id == User.id
+    ).outerjoin(
+        ProviderDetail, TourService.provider_id == ProviderDetail.user_id
+    ).filter(User.is_verified == True)
+    
+    # Apply city filter if provided
+    if city:
+        query = query.filter(TourService.city.ilike(f"%{city}%"))
+    
+    results = query.all()
+    
+    # Build response with business_name
+    response = []
+    for service, provider in results:
+        response.append(SearchServiceResult(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            price=float(service.price),
+            image_url=service.image_url,
+            city=service.city,
+            category=service.category,
+            status=service.status,
+            business_name=provider.business_name if provider else "Unknown"
+        ))
+    
+    return response

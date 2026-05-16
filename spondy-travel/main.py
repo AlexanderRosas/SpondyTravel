@@ -11,9 +11,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Crear las tablas si no existen
-Base.metadata.create_all(bind=engine)
-
 # 2. Modelos de Base de Datos (Mapean tu init.sql)
 class User(Base):
     __tablename__ = "users"
@@ -42,14 +39,17 @@ class ProviderDetail(Base):
 class TourService(Base):
     __tablename__ = "services"
     id = Column(Integer, primary_key=True, index=True)
-    provider_id = Column(Integer)
+    provider_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String)
-    description = Column(String)
+    description = Column(Text)
     price = Column(Numeric)
     image_url = Column(String)
     city = Column(String, nullable=True)
     category = Column(String, nullable=True)
     status = Column(String, default="Activo")
+
+# Crear las tablas si no existen
+Base.metadata.create_all(bind=engine)
 
 # 3. Esquemas (Para recibir datos del Frontend)
 class LoginRequest(BaseModel):
@@ -66,9 +66,9 @@ class ProviderResponse(BaseModel):
 class SearchServiceResult(BaseModel):
     id: int
     name: str
-    description: str
+    description: str | None = None
     price: float
-    image_url: str
+    image_url: str | None = None
     city: str | None = None
     category: str | None = None
     status: str
@@ -77,6 +77,37 @@ class SearchServiceResult(BaseModel):
 
 class ApproveRequest(BaseModel):
     status: bool
+
+class ProviderProfileCreate(BaseModel):
+    business_name: str
+    tax_id: str
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    category: str | None = None
+
+class ProviderProfileUpdate(ProviderProfileCreate):
+    pass
+
+class ProviderProfileResponse(ProviderProfileCreate):
+    id: int
+    user_id: int
+    is_verified: bool
+
+class TourServiceCreate(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+    image_url: str | None = None
+    city: str | None = None
+    category: str | None = None
+    status: str = "Activo"
+
+class TourServiceUpdate(TourServiceCreate):
+    pass
+
+class ServiceStatusUpdate(BaseModel):
+    status: str
 
 # 4. Inicializar FastAPI
 app = FastAPI(title="Spondy Travel API")
@@ -98,6 +129,26 @@ def get_db():
     finally:
         db.close()
 
+def get_provider_or_404(provider_id: int, db: Session) -> User:
+    provider = db.query(User).filter(User.id == provider_id, User.role == "PROVIDER").first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    return provider
+
+def validate_unique_tax_id(provider_id: int, tax_id: str, db: Session):
+    existing = db.query(ProviderDetail).filter(
+        ProviderDetail.tax_id == tax_id,
+        ProviderDetail.user_id != provider_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="El tax_id ya esta registrado por otro proveedor")
+
+def validate_service_payload(payload: TourServiceCreate | TourServiceUpdate):
+    if payload.price <= 0:
+        raise HTTPException(status_code=400, detail="El precio del servicio debe ser mayor a 0")
+    if payload.status not in ("Activo", "Inactivo"):
+        raise HTTPException(status_code=400, detail="El estado debe ser Activo o Inactivo")
+
 # 5. ENDPOINTS
 
 @app.post("/api/auth/login")
@@ -111,9 +162,121 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 
 @app.get("/api/provider/{provider_id}/services")
 def get_services(provider_id: int, db: Session = Depends(get_db)):
-    # Traemos los servicios quemados de ese proveedor
+    get_provider_or_404(provider_id, db)
     services = db.query(TourService).filter(TourService.provider_id == provider_id).all()
     return services
+
+@app.get("/api/provider/{provider_id}/profile", response_model=ProviderProfileResponse)
+def get_provider_profile(provider_id: int, db: Session = Depends(get_db)):
+    provider = get_provider_or_404(provider_id, db)
+    detail = db.query(ProviderDetail).filter(ProviderDetail.user_id == provider_id).first()
+    if not detail:
+        raise HTTPException(status_code=404, detail="Perfil del negocio no encontrado")
+    return ProviderProfileResponse(
+        id=detail.id,
+        user_id=detail.user_id,
+        business_name=detail.business_name,
+        tax_id=detail.tax_id,
+        phone=detail.phone,
+        address=detail.address,
+        city=detail.city,
+        category=detail.category,
+        is_verified=provider.is_verified
+    )
+
+@app.put("/api/provider/{provider_id}/profile", response_model=ProviderProfileResponse)
+def upsert_provider_profile(provider_id: int, payload: ProviderProfileUpdate, db: Session = Depends(get_db)):
+    provider = get_provider_or_404(provider_id, db)
+    validate_unique_tax_id(provider_id, payload.tax_id, db)
+
+    detail = db.query(ProviderDetail).filter(ProviderDetail.user_id == provider_id).first()
+    if not detail:
+        detail = ProviderDetail(user_id=provider_id)
+        db.add(detail)
+
+    detail.business_name = payload.business_name
+    detail.tax_id = payload.tax_id
+    detail.phone = payload.phone
+    detail.address = payload.address
+    detail.city = payload.city
+    detail.category = payload.category
+
+    db.commit()
+    db.refresh(detail)
+
+    return ProviderProfileResponse(
+        id=detail.id,
+        user_id=detail.user_id,
+        business_name=detail.business_name,
+        tax_id=detail.tax_id,
+        phone=detail.phone,
+        address=detail.address,
+        city=detail.city,
+        category=detail.category,
+        is_verified=provider.is_verified
+    )
+
+@app.post("/api/provider/{provider_id}/services")
+def create_provider_service(provider_id: int, payload: TourServiceCreate, db: Session = Depends(get_db)):
+    get_provider_or_404(provider_id, db)
+    validate_service_payload(payload)
+
+    service = TourService(
+        provider_id=provider_id,
+        name=payload.name,
+        description=payload.description,
+        price=payload.price,
+        image_url=payload.image_url,
+        city=payload.city,
+        category=payload.category,
+        status=payload.status
+    )
+    db.add(service)
+    db.commit()
+    db.refresh(service)
+    return service
+
+@app.put("/api/provider/{provider_id}/services/{service_id}")
+def update_provider_service(provider_id: int, service_id: int, payload: TourServiceUpdate, db: Session = Depends(get_db)):
+    get_provider_or_404(provider_id, db)
+    validate_service_payload(payload)
+
+    service = db.query(TourService).filter(
+        TourService.id == service_id,
+        TourService.provider_id == provider_id
+    ).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado para este proveedor")
+
+    service.name = payload.name
+    service.description = payload.description
+    service.price = payload.price
+    service.image_url = payload.image_url
+    service.city = payload.city
+    service.category = payload.category
+    service.status = payload.status
+
+    db.commit()
+    db.refresh(service)
+    return service
+
+@app.patch("/api/provider/{provider_id}/services/{service_id}/status")
+def update_provider_service_status(provider_id: int, service_id: int, payload: ServiceStatusUpdate, db: Session = Depends(get_db)):
+    get_provider_or_404(provider_id, db)
+    if payload.status not in ("Activo", "Inactivo"):
+        raise HTTPException(status_code=400, detail="El estado debe ser Activo o Inactivo")
+
+    service = db.query(TourService).filter(
+        TourService.id == service_id,
+        TourService.provider_id == provider_id
+    ).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado para este proveedor")
+
+    service.status = payload.status
+    db.commit()
+    db.refresh(service)
+    return service
 
 @app.get("/api/admin/pending-providers")
 def get_pending_providers(db: Session = Depends(get_db)):
@@ -139,11 +302,33 @@ def verify_provider(user_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Provider verified successfully"}
 
-@app.get("/api/services")
+@app.get("/api/services", response_model=list[SearchServiceResult])
 def get_verified_services(db: Session = Depends(get_db)):
-    # Get services from verified providers
-    services = db.query(TourService).join(User, TourService.provider_id == User.id).filter(User.is_verified == True).all()
-    return services
+    services = db.query(TourService, User, ProviderDetail).join(
+        User, TourService.provider_id == User.id
+    ).outerjoin(
+        ProviderDetail, TourService.provider_id == ProviderDetail.user_id
+    ).filter(
+        User.role == "PROVIDER",
+        User.is_verified == True,
+        TourService.status == "Activo"
+    ).all()
+
+    response = []
+    for service, user, provider in services:
+        response.append(SearchServiceResult(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            price=float(service.price),
+            image_url=service.image_url,
+            city=service.city,
+            category=service.category,
+            status=service.status,
+            provider_full_name=user.full_name or user.name or user.email,
+            business_name=provider.business_name if provider else None
+        ))
+    return response
 
 @app.get("/api/services/search", response_model=list[SearchServiceResult])
 def search_services(city: str = None, category: str = None, max_price: float = None, db: Session = Depends(get_db)):
@@ -155,7 +340,11 @@ def search_services(city: str = None, category: str = None, max_price: float = N
         User, TourService.provider_id == User.id
     ).outerjoin(
         ProviderDetail, TourService.provider_id == ProviderDetail.user_id
-    ).filter(User.is_verified == True)
+    ).filter(
+        User.role == "PROVIDER",
+        User.is_verified == True,
+        TourService.status == "Activo"
+    )
     
     if city:
         query = query.filter(TourService.city.ilike(f"%{city}%"))

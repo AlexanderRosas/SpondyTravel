@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Detalles del Negocio (Lo que el admin revisa)
 CREATE TABLE IF NOT EXISTS provider_details (
     id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     business_name VARCHAR(255) NOT NULL,
     tax_id VARCHAR(20) UNIQUE NOT NULL,
     phone VARCHAR(20),
@@ -37,8 +37,14 @@ CREATE TABLE IF NOT EXISTS services (
 
 -- Compatibilidad con bases existentes
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
+ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+ALTER TABLE services ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Activo';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_details_user_id ON provider_details(user_id);
 
 -- DATOS DE PRUEBA
 INSERT INTO users (name, full_name, email, password, role, is_verified) VALUES 
@@ -60,7 +66,7 @@ INSERT INTO provider_details (user_id, business_name, tax_id, phone, address, ci
 
 -- Actualizar datos de prueba de full_name
 UPDATE users SET full_name = 'Admin Spondy' WHERE role = 'ADMIN';
-UPDATE users SET full_name = 'Christian Puchaicela' WHERE email = 'pendiente@turismo.com';
+UPDATE users SET full_name = 'Christian Puchaicela' WHERE email = 'viajeroUno@spondytravel.com';
 
 -- Insertar servicios de prueba vinculados a los proveedores
 INSERT INTO services (provider_id, name, description, price, image_url, city, category, status) VALUES 
@@ -68,4 +74,6 @@ INSERT INTO services (provider_id, name, description, price, image_url, city, ca
 (2, 'Tour de Snorkel', 'Tour guiado de 3 horas por los arrecifes locales.', 35.00, 'https://plus.unsplash.com/premium_photo-1716999413705-44286906c6c2?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Actividad', 'Activo'),
 (3, 'Excursión de Montaña', 'Trekking de día completo con guía y almuerzo incluido.', 55.00, 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Quito', 'Actividad', 'Activo'),
 (4, 'Safari en la Selva', 'Ruta de 2 días por la selva con avistamiento de fauna.', 120.00, 'https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2068&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Tena', 'Actividad', 'Activo'),
-(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Actividad', 'Activo');
+(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Actividad', 'Activo'),
+(2, 'Traslado privado nocturno', 'Traslado reservado desde el aeropuerto con conductor local.', 28.00, 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Transporte', 'Inactivo'),
+(4, 'Ruta cultural pendiente', 'Servicio activo de un proveedor aun no verificado para validar filtros.', 45.00, 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Cultura', 'Activo');

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import SearchBar from './SearchBar';
 import { ItineraryProvider, useItinerary } from '../context/ItineraryContext';
 import StickyBudgetBar from './StickyBudgetBar';
+import SpondyPlanner from './SpondyPlanner';
 
 export default function TravelerServicesWithBudget({ user, onLogout }) {
   const [services, setServices] = useState([]);
@@ -103,6 +104,7 @@ export default function TravelerServicesWithBudget({ user, onLogout }) {
 
         <main className="max-w-7xl mx-auto px-6 py-12">
           <SearchBar onSearch={handleSearch} isLoading={searchLoading} />
+          <SpondyPlanner />
 
           {searchSummary && (
             <div className="mb-8 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">

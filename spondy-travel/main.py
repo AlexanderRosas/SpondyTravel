@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel, field_validator
-from sqlalchemy import create_engine, Column, Integer, String, Numeric, Boolean, ForeignKey, Text, TIMESTAMP
+from sqlalchemy import create_engine, Column, Integer, String, Numeric, Boolean, ForeignKey, Text, TIMESTAMP, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
@@ -66,11 +66,22 @@ class ItineraryItem(Base):
     itinerary_id = Column(Integer, ForeignKey("itineraries.id"))
     service_id = Column(Integer, ForeignKey("services.id"))
     quantity = Column(Integer, default=1)
+    dia_asignado = Column(Integer, default=1, nullable=False)
     added_at = Column(TIMESTAMP, default=datetime.utcnow)
     itinerary = relationship("Itinerary", back_populates="items")
 
 # Crear las tablas si no existen
 Base.metadata.create_all(bind=engine)
+
+def ensure_schema_compatibility():
+    with engine.begin() as connection:
+        connection.execute(text(
+            "ALTER TABLE itinerary_items "
+            "ADD COLUMN IF NOT EXISTS dia_asignado INT NOT NULL DEFAULT 1 "
+            "CHECK (dia_asignado > 0)"
+        ))
+
+ensure_schema_compatibility()
 
 # 3. Esquemas (Para recibir datos del Frontend)
 class LoginRequest(BaseModel):
@@ -164,10 +175,14 @@ class AddItineraryItemRequest(BaseModel):
     service_id: int
     quantity: int = 1
 
+class UpdateItineraryItemDayRequest(BaseModel):
+    dia_asignado: int
+
 class ItineraryItemResponse(BaseModel):
     id: int
     service_id: int
     quantity: int
+    dia_asignado: int
     service_name: str
     service_price: float
     added_at: str
@@ -583,6 +598,7 @@ def get_traveler_itinerary(traveler_id: int, db: Session = Depends(get_db)):
                 id=item.id,
                 service_id=item.service_id,
                 quantity=item.quantity,
+                dia_asignado=item.dia_asignado or 1,
                 service_name=service.name,
                 service_price=float(service.price),
                 added_at=item.added_at.isoformat()
@@ -645,6 +661,51 @@ def add_service_to_itinerary(traveler_id: int, payload: AddItineraryItemRequest,
         id=item.id,
         service_id=item.service_id,
         quantity=item.quantity,
+        dia_asignado=item.dia_asignado or 1,
+        service_name=service.name,
+        service_price=float(service.price),
+        added_at=item.added_at.isoformat()
+    )
+
+@app.patch("/api/traveler/{traveler_id}/itinerary/items/{item_id}/day", response_model=ItineraryItemResponse)
+def update_itinerary_item_day(
+    traveler_id: int,
+    item_id: int,
+    payload: UpdateItineraryItemDayRequest,
+    db: Session = Depends(get_db)
+):
+    """Actualiza el dia asignado de una actividad del itinerario."""
+    get_traveler_or_404(traveler_id, db)
+
+    if payload.dia_asignado < 1:
+        raise HTTPException(status_code=400, detail="El dia asignado debe ser mayor o igual a 1")
+
+    itinerary = db.query(Itinerary).filter(Itinerary.traveler_id == traveler_id).first()
+    if not itinerary:
+        raise HTTPException(status_code=404, detail="Itinerario no encontrado")
+
+    item = db.query(ItineraryItem).filter(
+        ItineraryItem.id == item_id,
+        ItineraryItem.itinerary_id == itinerary.id
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item del itinerario no encontrado")
+
+    service = db.query(TourService).filter(TourService.id == item.service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    item.dia_asignado = payload.dia_asignado
+    itinerary.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(item)
+
+    return ItineraryItemResponse(
+        id=item.id,
+        service_id=item.service_id,
+        quantity=item.quantity,
+        dia_asignado=item.dia_asignado,
         service_name=service.name,
         service_price=float(service.price),
         added_at=item.added_at.isoformat()

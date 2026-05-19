@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS itinerary_items (
     itinerary_id INT NOT NULL REFERENCES itineraries(id) ON DELETE CASCADE,
     service_id INT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
     quantity INT DEFAULT 1 CHECK (quantity > 0),
+    dia_asignado INT NOT NULL DEFAULT 1 CHECK (dia_asignado > 0),
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -62,6 +63,7 @@ ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS city VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Activo';
+ALTER TABLE itinerary_items ADD COLUMN IF NOT EXISTS dia_asignado INT NOT NULL DEFAULT 1 CHECK (dia_asignado > 0);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_details_user_id ON provider_details(user_id);
 
 -- DATOS DE PRUEBA

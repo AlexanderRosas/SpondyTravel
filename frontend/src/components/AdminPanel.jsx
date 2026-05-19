@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 const AdminPanel = ({ user, onLogout }) => {
@@ -7,11 +7,7 @@ const AdminPanel = ({ user, onLogout }) => {
   const [error, setError] = useState(null);
   const [approving, setApproving] = useState(null);
 
-  useEffect(() => {
-    fetchPendingProviders();
-  }, []);
-
-  const fetchPendingProviders = async () => {
+  const fetchPendingProviders = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No autorizado. Por favor, inicia sesión nuevamente.');
@@ -30,7 +26,12 @@ const AdminPanel = ({ user, onLogout }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchPendingProviders();
+  }, [fetchPendingProviders]);
 
   const approveProvider = async (provider) => {
     setApproving(provider.id);
@@ -46,7 +47,7 @@ const AdminPanel = ({ user, onLogout }) => {
         credentials: 'include'
       });
       if (!response.ok) throw new Error('No se pudo aprobar el proveedor');
-      setProviders(providers.filter(p => p.id !== provider.id));
+      setProviders((currentProviders) => currentProviders.filter((p) => p.id !== provider.id));
     } catch (err) {
       setError(err.message);
     } finally {

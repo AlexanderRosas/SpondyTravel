@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import create_engine, Column, Integer, String, Numeric, Boolean, ForeignKey, Text, TIMESTAMP
 from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from typing import Optional
+from decimal import Decimal
 from security import get_password_hash, verify_password
 from auth_utils import generate_token, validate_token, revoke_token
 
@@ -45,7 +46,7 @@ class TourService(Base):
     provider_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String)
     description = Column(Text)
-    price = Column(Numeric)
+    price = Column(Numeric(10, 2), nullable=False)
     image_url = Column(String)
     city = Column(String, nullable=True)
     category = Column(String, nullable=True)
@@ -138,6 +139,20 @@ class TourServiceCreate(BaseModel):
     city: str | None = None
     category: str | None = None
     status: str = "Activo"
+    
+    @field_validator('price')
+    @classmethod
+    def validate_price(cls, v):
+        """Validate price: must be positive and have max 2 decimal places"""
+        if v <= 0:
+            raise ValueError("El precio debe ser mayor a 0")
+        # Check if price has more than 2 decimal places
+        price_str = f"{v:.10f}".rstrip('0')
+        if '.' in price_str:
+            decimals = len(price_str.split('.')[1])
+            if decimals > 2:
+                raise ValueError("El precio no puede tener más de 2 decimales")
+        return round(v, 2)
 
 class TourServiceUpdate(TourServiceCreate):
     pass
@@ -540,13 +555,19 @@ def get_or_create_itinerary(traveler_id: int, db: Session) -> Itinerary:
     return itinerary
 
 def calculate_itinerary_total(itinerary: Itinerary, db: Session) -> float:
-    """Calcula el total presupuestado del itinerario"""
-    total = 0.0
+    """
+    Calcula el total presupuestado del itinerario usando Decimal para precisión exacta.
+    Evita errores de redondeo inherentes a los cálculos con float.
+    """
+    total = Decimal('0.00')
     for item in itinerary.items:
         service = db.query(TourService).filter(TourService.id == item.service_id).first()
         if service:
-            total += float(service.price) * item.quantity
-    return round(total, 2)
+            # Usar Decimal para precisión exacta
+            service_price = Decimal(str(service.price))
+            total += service_price * Decimal(str(item.quantity))
+    # Redondear a 2 decimales y convertir a float para la API
+    return float(total.quantize(Decimal('0.01')))
 
 @app.get("/api/traveler/{traveler_id}/itinerary", response_model=ItineraryResponse)
 def get_traveler_itinerary(traveler_id: int, db: Session = Depends(get_db)):

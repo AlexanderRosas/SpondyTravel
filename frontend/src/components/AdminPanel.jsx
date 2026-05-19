@@ -13,7 +13,15 @@ const AdminPanel = ({ user, onLogout }) => {
 
   const fetchPendingProviders = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/admin/pending-providers');
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No autorizado. Por favor, inicia sesión nuevamente.');
+      const response = await fetch('http://localhost:8000/api/admin/pending-providers', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // Para enviar cookies si el backend las utiliza
+      });
       if (!response.ok) throw new Error('No se pudieron cargar los proveedores');
       const data = await response.json();
       setProviders(data);
@@ -27,8 +35,15 @@ const AdminPanel = ({ user, onLogout }) => {
   const approveProvider = async (provider) => {
     setApproving(provider.id);
     try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No autorizado. Por favor, inicia sesión nuevamente.');
       const response = await fetch(`http://localhost:8000/api/admin/verify-provider/${provider.id}`, {
         method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
       });
       if (!response.ok) throw new Error('No se pudo aprobar el proveedor');
       setProviders(providers.filter(p => p.id !== provider.id));

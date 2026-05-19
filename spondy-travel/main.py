@@ -5,9 +5,9 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from typing import Optional
-from decimal import Decimal
 from security import get_password_hash, verify_password
 from auth_utils import generate_token, validate_token, revoke_token
+from budget_utils import calculate_budget_total
 
 # 1. Configuración de la Base de Datos (Conectando a tu PostgreSQL en Docker)
 DATABASE_URL = "postgresql://spondy_admin:spondy_password@localhost:5432/spondy_travel_db"
@@ -574,15 +574,16 @@ def calculate_itinerary_total(itinerary: Itinerary, db: Session) -> float:
     Calcula el total presupuestado del itinerario usando Decimal para precisión exacta.
     Evita errores de redondeo inherentes a los cálculos con float.
     """
-    total = Decimal('0.00')
+    budget_entries = []
     for item in itinerary.items:
         service = db.query(TourService).filter(TourService.id == item.service_id).first()
         if service:
-            # Usar Decimal para precisión exacta
-            service_price = Decimal(str(service.price))
-            total += service_price * Decimal(str(item.quantity))
-    # Redondear a 2 decimales y convertir a float para la API
-    return float(total.quantize(Decimal('0.01')))
+            budget_entries.append({
+                "price": service.price,
+                "quantity": item.quantity,
+            })
+
+    return float(calculate_budget_total(budget_entries))
 
 @app.get("/api/traveler/{traveler_id}/itinerary", response_model=ItineraryResponse)
 def get_traveler_itinerary(traveler_id: int, db: Session = Depends(get_db)):
@@ -745,4 +746,15 @@ def get_traveler_budget(traveler_id: int, db: Session = Depends(get_db)):
     return BudgetResponse(
         total_budget=total_budget,
         item_count=item_count
+    )
+
+@app.post("/api/traveler/{traveler_id}/itinerary/budget/calculate", response_model=BudgetResponse)
+def calculate_traveler_budget(traveler_id: int, db: Session = Depends(get_db)):
+    """Recalcula el presupuesto total actual del itinerario del viajero."""
+    get_traveler_or_404(traveler_id, db)
+    itinerary = get_or_create_itinerary(traveler_id, db)
+
+    return BudgetResponse(
+        total_budget=calculate_itinerary_total(itinerary, db),
+        item_count=len(itinerary.items)
     )

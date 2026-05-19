@@ -35,6 +35,24 @@ CREATE TABLE IF NOT EXISTS services (
     status VARCHAR(50) DEFAULT 'Activo'
 );
 
+-- Itinerarios de Viajeros (HU03)
+CREATE TABLE IF NOT EXISTS itineraries (
+    id SERIAL PRIMARY KEY,
+    traveler_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(traveler_id)
+);
+
+-- Items del Itinerario (HU03)
+CREATE TABLE IF NOT EXISTS itinerary_items (
+    id SERIAL PRIMARY KEY,
+    itinerary_id INT NOT NULL REFERENCES itineraries(id) ON DELETE CASCADE,
+    service_id INT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+    quantity INT DEFAULT 1 CHECK (quantity > 0),
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Compatibilidad con bases existentes
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS phone VARCHAR(20);

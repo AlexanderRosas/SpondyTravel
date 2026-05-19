@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminPanel from './components/AdminPanel';
-import TravelerServices from './components/TravelerServices';
+import TravelerServices from './components/TravelerServicesWithBudget';
 
 function App() {
   const [user, setUser] = useState(null);

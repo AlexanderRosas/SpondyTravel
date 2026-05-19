@@ -48,6 +48,23 @@ class TourService(Base):
     category = Column(String, nullable=True)
     status = Column(String, default="Activo")
 
+class Itinerary(Base):
+    __tablename__ = "itineraries"
+    id = Column(Integer, primary_key=True, index=True)
+    traveler_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    items = relationship("ItineraryItem", back_populates="itinerary", cascade="all, delete-orphan")
+
+class ItineraryItem(Base):
+    __tablename__ = "itinerary_items"
+    id = Column(Integer, primary_key=True, index=True)
+    itinerary_id = Column(Integer, ForeignKey("itineraries.id"))
+    service_id = Column(Integer, ForeignKey("services.id"))
+    quantity = Column(Integer, default=1)
+    added_at = Column(TIMESTAMP, default=datetime.utcnow)
+    itinerary = relationship("Itinerary", back_populates="items")
+
 # Crear las tablas si no existen
 Base.metadata.create_all(bind=engine)
 
@@ -108,6 +125,30 @@ class TourServiceUpdate(TourServiceCreate):
 
 class ServiceStatusUpdate(BaseModel):
     status: str
+
+class AddItineraryItemRequest(BaseModel):
+    service_id: int
+    quantity: int = 1
+
+class ItineraryItemResponse(BaseModel):
+    id: int
+    service_id: int
+    quantity: int
+    service_name: str
+    service_price: float
+    added_at: str
+
+class ItineraryResponse(BaseModel):
+    id: int
+    traveler_id: int
+    items: list[ItineraryItemResponse]
+    total_budget: float
+    created_at: str
+    updated_at: str
+
+class BudgetResponse(BaseModel):
+    total_budget: float
+    item_count: int
 
 # 4. Inicializar FastAPI
 app = FastAPI(title="Spondy Travel API")
@@ -371,3 +412,147 @@ def search_services(city: str = None, category: str = None, max_price: float = N
         ))
     
     return response
+
+# ==================== HU03: Calculadora de Presupuesto ====================
+
+def get_traveler_or_404(traveler_id: int, db: Session) -> User:
+    traveler = db.query(User).filter(User.id == traveler_id, User.role == "TRAVELER").first()
+    if not traveler:
+        raise HTTPException(status_code=404, detail="Viajero no encontrado")
+    return traveler
+
+def get_or_create_itinerary(traveler_id: int, db: Session) -> Itinerary:
+    """Obtiene o crea el itinerario del viajero"""
+    itinerary = db.query(Itinerary).filter(Itinerary.traveler_id == traveler_id).first()
+    if not itinerary:
+        itinerary = Itinerary(traveler_id=traveler_id)
+        db.add(itinerary)
+        db.commit()
+        db.refresh(itinerary)
+    return itinerary
+
+def calculate_itinerary_total(itinerary: Itinerary, db: Session) -> float:
+    """Calcula el total presupuestado del itinerario"""
+    total = 0.0
+    for item in itinerary.items:
+        service = db.query(TourService).filter(TourService.id == item.service_id).first()
+        if service:
+            total += float(service.price) * item.quantity
+    return round(total, 2)
+
+@app.get("/api/traveler/{traveler_id}/itinerary", response_model=ItineraryResponse)
+def get_traveler_itinerary(traveler_id: int, db: Session = Depends(get_db)):
+    """Obtiene el itinerario del viajero con todos los servicios y el total presupuestado"""
+    get_traveler_or_404(traveler_id, db)
+    itinerary = get_or_create_itinerary(traveler_id, db)
+    
+    items = []
+    for item in itinerary.items:
+        service = db.query(TourService).filter(TourService.id == item.service_id).first()
+        if service:
+            items.append(ItineraryItemResponse(
+                id=item.id,
+                service_id=item.service_id,
+                quantity=item.quantity,
+                service_name=service.name,
+                service_price=float(service.price),
+                added_at=item.added_at.isoformat()
+            ))
+    
+    total_budget = calculate_itinerary_total(itinerary, db)
+    
+    return ItineraryResponse(
+        id=itinerary.id,
+        traveler_id=itinerary.traveler_id,
+        items=items,
+        total_budget=total_budget,
+        created_at=itinerary.created_at.isoformat(),
+        updated_at=itinerary.updated_at.isoformat()
+    )
+
+@app.post("/api/traveler/{traveler_id}/itinerary/items", response_model=ItineraryItemResponse)
+def add_service_to_itinerary(traveler_id: int, payload: AddItineraryItemRequest, db: Session = Depends(get_db)):
+    """Agrega un servicio al itinerario del viajero"""
+    get_traveler_or_404(traveler_id, db)
+    
+    # Validar que el servicio exista
+    service = db.query(TourService).filter(TourService.id == payload.service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    
+    # Validar cantidad
+    if payload.quantity <= 0:
+        raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0")
+    
+    # Obtener o crear itinerario
+    itinerary = get_or_create_itinerary(traveler_id, db)
+    
+    # Verificar si el servicio ya está en el itinerario
+    existing_item = db.query(ItineraryItem).filter(
+        ItineraryItem.itinerary_id == itinerary.id,
+        ItineraryItem.service_id == payload.service_id
+    ).first()
+    
+    if existing_item:
+        # Si ya existe, actualizar la cantidad
+        existing_item.quantity += payload.quantity
+        item = existing_item
+    else:
+        # Si no existe, crear un nuevo item
+        item = ItineraryItem(
+            itinerary_id=itinerary.id,
+            service_id=payload.service_id,
+            quantity=payload.quantity
+        )
+        db.add(item)
+    
+    # Actualizar el timestamp del itinerario
+    itinerary.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(item)
+    
+    return ItineraryItemResponse(
+        id=item.id,
+        service_id=item.service_id,
+        quantity=item.quantity,
+        service_name=service.name,
+        service_price=float(service.price),
+        added_at=item.added_at.isoformat()
+    )
+
+@app.delete("/api/traveler/{traveler_id}/itinerary/items/{item_id}")
+def remove_service_from_itinerary(traveler_id: int, item_id: int, db: Session = Depends(get_db)):
+    """Elimina un servicio del itinerario del viajero"""
+    get_traveler_or_404(traveler_id, db)
+    
+    itinerary = db.query(Itinerary).filter(Itinerary.traveler_id == traveler_id).first()
+    if not itinerary:
+        raise HTTPException(status_code=404, detail="Itinerario no encontrado")
+    
+    item = db.query(ItineraryItem).filter(
+        ItineraryItem.id == item_id,
+        ItineraryItem.itinerary_id == itinerary.id
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item del itinerario no encontrado")
+    
+    db.delete(item)
+    itinerary.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {"message": "Servicio eliminado del itinerario"}
+
+@app.get("/api/traveler/{traveler_id}/itinerary/budget", response_model=BudgetResponse)
+def get_traveler_budget(traveler_id: int, db: Session = Depends(get_db)):
+    """Obtiene el presupuesto total del itinerario (sin detalles de items)"""
+    get_traveler_or_404(traveler_id, db)
+    itinerary = get_or_create_itinerary(traveler_id, db)
+    
+    total_budget = calculate_itinerary_total(itinerary, db)
+    item_count = len(itinerary.items)
+    
+    return BudgetResponse(
+        total_budget=total_budget,
+        item_count=item_count
+    )

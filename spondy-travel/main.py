@@ -8,6 +8,7 @@ from typing import Optional
 from security import get_password_hash, verify_password
 from auth_utils import generate_token, validate_token, revoke_token
 from budget_utils import calculate_budget_total
+from notification_utils import send_provider_status_email
 
 # 1. Configuración de la Base de Datos (Conectando a tu PostgreSQL en Docker)
 DATABASE_URL = "postgresql://spondy_admin:spondy_password@localhost:5432/spondy_travel_db"
@@ -25,6 +26,7 @@ class User(Base):
     password = Column(String)
     role = Column(String)
     is_verified = Column(Boolean, default=False)
+    provider_status = Column(String, default="pendiente")
     provider_detail = relationship("ProviderDetail", back_populates="user", uselist=False)
 
 class ProviderDetail(Base):
@@ -80,6 +82,24 @@ def ensure_schema_compatibility():
             "ADD COLUMN IF NOT EXISTS dia_asignado INT NOT NULL DEFAULT 1 "
             "CHECK (dia_asignado > 0)"
         ))
+        connection.execute(text(
+            "ALTER TABLE users "
+            "ADD COLUMN IF NOT EXISTS provider_status VARCHAR(50) DEFAULT 'pendiente'"
+        ))
+        connection.execute(text(
+            "UPDATE users "
+            "SET provider_status = CASE "
+            "WHEN role = 'PROVIDER' AND is_verified = TRUE THEN 'aprobado' "
+            "WHEN role = 'PROVIDER' AND is_verified = FALSE THEN 'pendiente' "
+            "ELSE 'aprobado' END "
+            "WHERE provider_status IS NULL"
+        ))
+        connection.execute(text(
+            "UPDATE users "
+            "SET provider_status = 'aprobado' "
+            "WHERE provider_status = 'pendiente' "
+            "AND (role != 'PROVIDER' OR is_verified = TRUE)"
+        ))
 
 ensure_schema_compatibility()
 
@@ -109,6 +129,12 @@ class ProviderResponse(BaseModel):
     full_name: str | None = None
     business_name: str
     tax_id: str
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    category: str | None = None
+    provider_status: str
+    created_at: datetime | None = None
 
 
 class SearchServiceResult(BaseModel):
@@ -125,6 +151,17 @@ class SearchServiceResult(BaseModel):
 
 class ApproveRequest(BaseModel):
     status: bool
+
+class ProviderStatusUpdate(BaseModel):
+    status: str
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value):
+        normalized = value.lower()
+        if normalized not in ("aprobado", "rechazado"):
+            raise ValueError("El estado debe ser aprobado o rechazado")
+        return normalized
 
 class ProviderProfileCreate(BaseModel):
     business_name: str
@@ -306,7 +343,8 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         email=request.email,
         password=hashed_password,
         role=role,
-        is_verified=(role == "TRAVELER")
+        is_verified=(role == "TRAVELER"),
+        provider_status=("pendiente" if role == "PROVIDER" else "aprobado")
     )
     db.add(user)
     db.commit()
@@ -452,7 +490,7 @@ def get_pending_providers(
     """
     providers = db.query(User).join(ProviderDetail).filter(
         User.role == "PROVIDER",
-        User.is_verified == False
+        User.provider_status == "pendiente"
     ).all()
     
     result = []
@@ -463,9 +501,48 @@ def get_pending_providers(
                 email=user.email,
                 full_name=user.full_name or user.name,
                 business_name=user.provider_detail.business_name,
-                tax_id=user.provider_detail.tax_id
+                tax_id=user.provider_detail.tax_id,
+                phone=user.provider_detail.phone,
+                address=user.provider_detail.address,
+                city=user.provider_detail.city,
+                category=user.provider_detail.category,
+                provider_status=user.provider_status,
+                created_at=user.provider_detail.created_at
             ))
     return result
+
+def apply_provider_status(user_id: int, status: str, db: Session):
+    user = db.query(User).filter(User.id == user_id, User.role == "PROVIDER").first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    user.provider_status = status
+    user.is_verified = status == "aprobado"
+    db.commit()
+    db.refresh(user)
+
+    business_name = user.provider_detail.business_name if user.provider_detail else user.full_name or user.name
+    try:
+        send_provider_status_email(user.email, business_name, status)
+    except Exception as exc:
+        print(f"[ProviderStatusEmailError] provider_id={user.id} error={exc}")
+
+    return {
+        "message": f"Provider status updated to {status}",
+        "provider_id": user.id,
+        "status": status,
+        "is_verified": user.is_verified
+    }
+
+@app.put("/api/admin/providers/{user_id}/status")
+def update_provider_status(
+    user_id: int,
+    payload: ProviderStatusUpdate,
+    current_user: dict = Depends(require_role(["ADMIN"])),
+    db: Session = Depends(get_db)
+):
+    """Approve or reject a pending provider. ADMIN only."""
+    return apply_provider_status(user_id, payload.status, db)
 
 @app.put("/api/admin/verify-provider/{user_id}")
 def verify_provider(
@@ -474,12 +551,7 @@ def verify_provider(
     db: Session = Depends(get_db)
 ):
     """Verify a pending provider. ADMIN only."""
-    user = db.query(User).filter(User.id == user_id, User.role == "PROVIDER").first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    user.is_verified = True
-    db.commit()
-    return {"message": "Provider verified successfully"}
+    return apply_provider_status(user_id, "aprobado", db)
 
 @app.get("/api/services", response_model=list[SearchServiceResult])
 def get_verified_services(db: Session = Depends(get_db)):

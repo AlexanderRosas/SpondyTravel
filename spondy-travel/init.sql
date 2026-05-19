@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL, -- 'ADMIN', 'PROVIDER', 'TRAVELER'
-    is_verified BOOLEAN DEFAULT FALSE -- Clave para la HU04
+    is_verified BOOLEAN DEFAULT FALSE, -- Compatibilidad con filtros existentes
+    provider_status VARCHAR(50) DEFAULT 'pendiente' -- 'pendiente', 'aprobado', 'rechazado'
 );
 
 -- Detalles del Negocio (Lo que el admin revisa)
@@ -56,6 +57,18 @@ CREATE TABLE IF NOT EXISTS itinerary_items (
 
 -- Compatibilidad con bases existentes
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_status VARCHAR(50) DEFAULT 'pendiente';
+UPDATE users
+SET provider_status = CASE
+    WHEN role = 'PROVIDER' AND is_verified = TRUE THEN 'aprobado'
+    WHEN role = 'PROVIDER' AND is_verified = FALSE THEN 'pendiente'
+    ELSE 'aprobado'
+END
+WHERE provider_status IS NULL;
+UPDATE users
+SET provider_status = 'aprobado'
+WHERE provider_status = 'pendiente'
+AND (role != 'PROVIDER' OR is_verified = TRUE);
 ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS city VARCHAR(100);
@@ -67,15 +80,15 @@ ALTER TABLE itinerary_items ADD COLUMN IF NOT EXISTS dia_asignado INT NOT NULL D
 CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_details_user_id ON provider_details(user_id);
 
 -- DATOS DE PRUEBA
-INSERT INTO users (name, full_name, email, password, role, is_verified) VALUES 
-('Administrador', 'Admin Spondy', 'admin@spondy.com', '$2b$12$OSlpUUhHKJHmCyKFMQfGPO8zdkGLLjZ.W9.3y99Brx8SZ0uCWAxBG', 'ADMIN', TRUE),
-('Proveedor Aprobado', 'Proveedor Aprobado', 'proveedorAprobado@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', TRUE),
-('Proveedor Aprobado Dos', 'Proveedor Aprobado Dos', 'proveedorAprobadoDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', TRUE),
-('Proveedor Pendiente Uno', 'Proveedor Pendiente Uno', 'proveedorPendienteUno@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE),
-('Proveedor Pendiente Dos', 'Proveedor Pendiente Dos', 'proveedorPendienteDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE),
-('Proveedor Pendiente Tres', 'Proveedor Pendiente Tres', 'proveedorPendienteTres@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE),
-('Viajero Uno', 'Christian Puchaicela', 'viajeroUno@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'TRAVELER', TRUE),
-('Viajero Dos', 'Viajero Dos', 'viajeroDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'TRAVELER', TRUE);
+INSERT INTO users (name, full_name, email, password, role, is_verified, provider_status) VALUES 
+('Administrador', 'Admin Spondy', 'admin@spondy.com', '$2b$12$OSlpUUhHKJHmCyKFMQfGPO8zdkGLLjZ.W9.3y99Brx8SZ0uCWAxBG', 'ADMIN', TRUE, 'aprobado'),
+('Proveedor Aprobado', 'Proveedor Aprobado', 'proveedorAprobado@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', TRUE, 'aprobado'),
+('Proveedor Aprobado Dos', 'Proveedor Aprobado Dos', 'proveedorAprobadoDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', TRUE, 'aprobado'),
+('Proveedor Pendiente Uno', 'Proveedor Pendiente Uno', 'proveedorPendienteUno@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE, 'pendiente'),
+('Proveedor Pendiente Dos', 'Proveedor Pendiente Dos', 'proveedorPendienteDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE, 'pendiente'),
+('Proveedor Pendiente Tres', 'Proveedor Pendiente Tres', 'proveedorPendienteTres@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE, 'pendiente'),
+('Viajero Uno', 'Christian Puchaicela', 'viajeroUno@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'TRAVELER', TRUE, 'aprobado'),
+('Viajero Dos', 'Viajero Dos', 'viajeroDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'TRAVELER', TRUE, 'aprobado');
 
 INSERT INTO provider_details (user_id, business_name, tax_id, phone, address, city, category) VALUES 
 (2, 'Explora Ecuador S.A.', '1790001112001', '022555666', 'Amazonas y Shyris, Quito', 'Quito', 'Hospedaje'),

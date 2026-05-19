@@ -31,8 +31,14 @@ export function ItineraryProvider({ travelerId, children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [travelerId]);
 
-  const addItem = async (serviceId, quantity = 1) => {
+  const addItem = async (serviceId, quantity = 1, servicePrice = null) => {
     if (!travelerId) return { error: 'No traveler id' };
+
+    // Optimistic update: update total immediately if we have the service price
+    if (servicePrice !== null) {
+      setTotal(prev => parseFloat((prev + servicePrice * quantity).toFixed(2)));
+    }
+
     try {
       const res = await fetch(`${API_BASE}/traveler/${travelerId}/itinerary/items`, {
         method: 'POST',
@@ -44,16 +50,26 @@ export function ItineraryProvider({ travelerId, children }) {
         throw new Error(err.detail || 'Error agregando item');
       }
       const item = await res.json();
-      // update local state by refetching itinerary for simplicity
+      // synchronize state with server
       await fetchItinerary();
       return { item };
     } catch (err) {
+      // rollback optimistic update if possible
+      if (servicePrice !== null) {
+        setTotal(prev => parseFloat((prev - servicePrice * quantity).toFixed(2)));
+      }
       return { error: err.message };
     }
   };
 
-  const removeItem = async (itemId) => {
+  const removeItem = async (itemId, itemTotal = null) => {
     if (!travelerId) return { error: 'No traveler id' };
+
+    // Optimistic update: subtract item total if provided
+    if (itemTotal !== null) {
+      setTotal(prev => parseFloat((prev - itemTotal).toFixed(2)));
+    }
+
     try {
       const res = await fetch(`${API_BASE}/traveler/${travelerId}/itinerary/items/${itemId}`, {
         method: 'DELETE',
@@ -65,6 +81,10 @@ export function ItineraryProvider({ travelerId, children }) {
       await fetchItinerary();
       return { ok: true };
     } catch (err) {
+      // rollback optimistic subtraction
+      if (itemTotal !== null) {
+        setTotal(prev => parseFloat((prev + itemTotal).toFixed(2)));
+      }
       return { error: err.message };
     }
   };

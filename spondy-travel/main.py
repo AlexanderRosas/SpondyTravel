@@ -1,9 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Numeric, Boolean, ForeignKey, Text, TIMESTAMP
 from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
+from typing import Optional
+from security import get_password_hash, verify_password
+from auth_utils import generate_token, validate_token, revoke_token
 
 # 1. Configuración de la Base de Datos (Conectando a tu PostgreSQL en Docker)
 DATABASE_URL = "postgresql://spondy_admin:spondy_password@localhost:5432/spondy_travel_db"
@@ -73,9 +76,25 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class RegisterRequest(BaseModel):
+    name: str
+    full_name: str | None = None
+    email: str
+    password: str
+    role: str
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: int
+    email: str
+    full_name: str
+    role: str
+
 class ProviderResponse(BaseModel):
     id: int
     email: str
+    full_name: str | None = None
     business_name: str
     tax_id: str
 
@@ -156,7 +175,12 @@ app = FastAPI(title="Spondy Travel API")
 # Habilitar CORS para que el Frontend (React) pueda conectarse sin problemas
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -190,16 +214,83 @@ def validate_service_payload(payload: TourServiceCreate | TourServiceUpdate):
     if payload.status not in ("Activo", "Inactivo"):
         raise HTTPException(status_code=400, detail="El estado debe ser Activo o Inactivo")
 
+def get_current_user(authorization: Optional[str] = Header(None)):
+    """Extract and validate the current user from the Authorization header."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    token = parts[1]
+    token_data = validate_token(token)
+    if not token_data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    return token_data
+
+def require_role(allowed_roles: list):
+    """Dependency that checks if the current user has one of the allowed roles."""
+    def check_role(current_user: dict = Depends(get_current_user)):
+        if current_user["role"] not in allowed_roles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Insufficient permissions. Required role: {', '.join(allowed_roles)}"
+            )
+        return current_user
+    return check_role
+
 # 5. ENDPOINTS
 
-@app.post("/api/auth/login")
+@app.post("/api/auth/login", response_model=LoginResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
-    # Buscamos al usuario con esas credenciales
-    user = db.query(User).filter(User.email == request.email, User.password == request.password).first()
-    if not user:
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user or not verify_password(request.password, user.password):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     
-    return {"id": user.id, "email": user.email, "full_name": user.full_name or user.name, "role": user.role}
+    token = generate_token(user.id, user.role)
+    
+    return LoginResponse(
+        access_token=token,
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name or user.name,
+        role=user.role
+    )
+
+@app.post("/api/auth/register", response_model=LoginResponse)
+def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    role = request.role.upper()
+    if role not in ("PROVIDER", "TRAVELER"):
+        raise HTTPException(status_code=400, detail="Rol inválido. Debe ser PROVIDER o TRAVELER")
+
+    existing_user = db.query(User).filter(User.email == request.email).first()
+    if existing_user:
+        raise HTTPException(status_code=409, detail="El correo ya está registrado")
+
+    hashed_password = get_password_hash(request.password)
+    user = User(
+        name=request.name,
+        full_name=request.full_name,
+        email=request.email,
+        password=hashed_password,
+        role=role,
+        is_verified=(role == "TRAVELER")
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    token = generate_token(user.id, user.role)
+    
+    return LoginResponse(
+        access_token=token,
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name or user.name,
+        role=user.role
+    )
 
 @app.get("/api/provider/{provider_id}/services")
 def get_services(provider_id: int, db: Session = Depends(get_db)):
@@ -319,24 +410,41 @@ def update_provider_service_status(provider_id: int, service_id: int, payload: S
     db.refresh(service)
     return service
 
-@app.get("/api/admin/pending-providers")
-def get_pending_providers(db: Session = Depends(get_db)):
-    # Get all users with role 'PROVIDER' and is_verified False, join with provider_details
-    providers = db.query(User).join(ProviderDetail).filter(User.role == 'PROVIDER', User.is_verified == False).all()
+@app.get("/api/admin/pending-providers", response_model=list[ProviderResponse])
+def get_pending_providers(
+    current_user: dict = Depends(require_role(["ADMIN"])),
+    db: Session = Depends(get_db)
+):
+    """
+    ST-01: Get all pending providers waiting for verification.
+    This endpoint is protected and only accessible to ADMIN users.
+    Returns providers with is_verified=False including their business details.
+    """
+    providers = db.query(User).join(ProviderDetail).filter(
+        User.role == "PROVIDER",
+        User.is_verified == False
+    ).all()
+    
     result = []
     for user in providers:
         if user.provider_detail:
             result.append(ProviderResponse(
                 id=user.id,
                 email=user.email,
+                full_name=user.full_name or user.name,
                 business_name=user.provider_detail.business_name,
                 tax_id=user.provider_detail.tax_id
             ))
     return result
 
 @app.put("/api/admin/verify-provider/{user_id}")
-def verify_provider(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id, User.role == 'PROVIDER').first()
+def verify_provider(
+    user_id: int,
+    current_user: dict = Depends(require_role(["ADMIN"])),
+    db: Session = Depends(get_db)
+):
+    """Verify a pending provider. ADMIN only."""
+    user = db.query(User).filter(User.id == user_id, User.role == "PROVIDER").first()
     if not user:
         raise HTTPException(status_code=404, detail="Provider not found")
     user.is_verified = True

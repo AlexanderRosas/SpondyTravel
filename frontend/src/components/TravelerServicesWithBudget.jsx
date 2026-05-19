@@ -219,7 +219,8 @@ function ServiceReserveButton({ service }) {
 
   const handleReserve = async () => {
     setAdding(true);
-    await addItem(service.id, 1);
+    const price = parseFloat(service.price) || 0;
+    await addItem(service.id, 1, price);
     setAdding(false);
   };
 

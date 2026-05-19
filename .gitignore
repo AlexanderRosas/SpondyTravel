@@ -1,1 +1,18 @@
-/.vscode
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# React / Vite
+node_modules/
+dist/
+
+# Entorno
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

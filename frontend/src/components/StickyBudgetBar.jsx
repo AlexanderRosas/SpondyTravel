@@ -1,4 +1,3 @@
-import React from 'react';
 import { useItinerary } from '../context/ItineraryContext';
 
 export default function StickyBudgetBar() {

@@ -12,6 +12,12 @@ from notification_utils import send_provider_status_email
 
 import models
 
+DATABASE_URL = "postgresql://spondy_admin:spondy_password@localhost:5432/spondy_travel_db"
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
 # 2. Modelos de Base de Datos (Mapean tu init.sql)
 class User(Base):
     __tablename__ = "users"

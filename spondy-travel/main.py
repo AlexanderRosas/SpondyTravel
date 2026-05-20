@@ -10,11 +10,7 @@ from auth_utils import generate_token, validate_token, revoke_token
 from budget_utils import calculate_budget_total
 from notification_utils import send_provider_status_email
 
-# 1. Configuración de la Base de Datos (Conectando a tu PostgreSQL en Docker)
-DATABASE_URL = "postgresql://spondy_admin:spondy_password@localhost:5432/spondy_travel_db"
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+import models
 
 # 2. Modelos de Base de Datos (Mapean tu init.sql)
 class User(Base):
@@ -239,7 +235,6 @@ class BudgetResponse(BaseModel):
 # 4. Inicializar FastAPI
 app = FastAPI(title="Spondy Travel API")
 
-# Habilitar CORS para que el Frontend (React) pueda conectarse sin problemas
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

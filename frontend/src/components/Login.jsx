@@ -17,13 +17,22 @@ export default function Login({ onLogin }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        credentials: 'include' // Para enviar cookies si el backend las utiliza
       });
+
 
       if (!response.ok) {
         throw new Error('Credenciales incorrectas. Verifica tu email y contraseña.');
       }
       
-      const userData = await response.json();
+      const data = await response.json();
+      localStorage.setItem('token', data.access_token);
+      const userData = {
+        id: data.user_id,
+        email: data.email,
+        full_name: data.full_name,
+        role: data.role
+      };
       onLogin(userData);
     } catch (err) {
       setError(err.message);

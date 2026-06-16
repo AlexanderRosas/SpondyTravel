@@ -84,14 +84,20 @@ class ItineraryItemResponse(BaseModel):
     service_price: float
     added_at: str
 
+class BudgetBreakdown(BaseModel):
+    subtotal: float
+    iva_rate: float
+    iva_amount: float
+    total: float
+
 class ItineraryResponse(BaseModel):
     id: int
     traveler_id: int
     items: list[ItineraryItemResponse]
-    total_budget: float
+    budget_breakdown: BudgetBreakdown
     created_at: str
     updated_at: str
 
 class BudgetResponse(BaseModel):
-    total_budget: float
+    budget_breakdown: BudgetBreakdown
     item_count: int

@@ -12,6 +12,7 @@ class User(Base):
     password = Column(String)
     role = Column(String)
     is_verified = Column(Boolean, default=False)
+    provider_status = Column(String, default="pendiente") # Traído desde main.py
     provider_detail = relationship("ProviderDetail", back_populates="user", uselist=False)
 
 class ProviderDetail(Base):
@@ -33,7 +34,7 @@ class TourService(Base):
     provider_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String)
     description = Column(Text)
-    price = Column(Numeric)
+    price = Column(Numeric(10, 2), nullable=False) # Traído desde main.py
     image_url = Column(String)
     city = Column(String, nullable=True)
     category = Column(String, nullable=True)
@@ -53,5 +54,6 @@ class ItineraryItem(Base):
     itinerary_id = Column(Integer, ForeignKey("itineraries.id"))
     service_id = Column(Integer, ForeignKey("services.id"))
     quantity = Column(Integer, default=1)
+    dia_asignado = Column(Integer, default=1, nullable=False) # Traído desde main.py
     added_at = Column(TIMESTAMP, default=datetime.utcnow)
     itinerary = relationship("Itinerary", back_populates="items")

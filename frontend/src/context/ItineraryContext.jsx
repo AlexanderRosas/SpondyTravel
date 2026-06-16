@@ -22,14 +22,22 @@ async function readJsonResponse(response, fallbackMessage) {
 
 export function ItineraryProvider({ travelerId, children }) {
   const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
+  
+  // --- NUEVO ESTADO PARA EL DESGLOSE ---
+  const [budgetBreakdown, setBudgetBreakdown] = useState({
+    subtotal: 0,
+    iva_rate: 0.15,
+    iva_amount: 0,
+    total: 0
+  });
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchItinerary = async () => {
     if (!travelerId) {
       setItems([]);
-      setTotal(0);
+      setBudgetBreakdown({ subtotal: 0, iva_rate: 0.15, iva_amount: 0, total: 0 });
       setLoading(false);
       return;
     }
@@ -40,7 +48,11 @@ export function ItineraryProvider({ travelerId, children }) {
       const res = await fetch(`${API_BASE}/traveler/${travelerId}/itinerary`);
       const data = await readJsonResponse(res, 'No se pudo obtener el itinerario');
       setItems((data.items || []).map(normalizeItem));
-      setTotal(parseFloat(data.total_budget || 0));
+      
+      // Guardamos el desglose que viene del backend
+      if (data.budget_breakdown) {
+        setBudgetBreakdown(data.budget_breakdown);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -57,8 +69,18 @@ export function ItineraryProvider({ travelerId, children }) {
   const addItem = async (serviceId, quantity = 1, servicePrice = null) => {
     if (!travelerId) return { error: 'No traveler id' };
 
+    // Actualización optimista calculando el IVA
     if (servicePrice !== null) {
-      setTotal((prev) => parseFloat((prev + servicePrice * quantity).toFixed(2)));
+      setBudgetBreakdown((prev) => {
+        const newSubtotal = prev.subtotal + (servicePrice * quantity);
+        const newIvaAmount = newSubtotal * prev.iva_rate;
+        return {
+          ...prev,
+          subtotal: newSubtotal,
+          iva_amount: newIvaAmount,
+          total: newSubtotal + newIvaAmount
+        };
+      });
     }
 
     try {
@@ -68,11 +90,21 @@ export function ItineraryProvider({ travelerId, children }) {
         body: JSON.stringify({ service_id: serviceId, quantity }),
       });
       const item = normalizeItem(await readJsonResponse(res, 'Error agregando item'));
-      await fetchItinerary();
+      await fetchItinerary(); // Esto sincroniza con los datos reales del backend
       return { item };
     } catch (err) {
+      // Revertir actualización optimista en caso de error
       if (servicePrice !== null) {
-        setTotal((prev) => parseFloat((prev - servicePrice * quantity).toFixed(2)));
+        setBudgetBreakdown((prev) => {
+          const newSubtotal = prev.subtotal - (servicePrice * quantity);
+          const newIvaAmount = newSubtotal * prev.iva_rate;
+          return {
+            ...prev,
+            subtotal: newSubtotal,
+            iva_amount: newIvaAmount,
+            total: newSubtotal + newIvaAmount
+          };
+        });
       }
       return { error: err.message };
     }
@@ -81,8 +113,18 @@ export function ItineraryProvider({ travelerId, children }) {
   const removeItem = async (itemId, itemTotal = null) => {
     if (!travelerId) return { error: 'No traveler id' };
 
+    // Actualización optimista al eliminar
     if (itemTotal !== null) {
-      setTotal((prev) => parseFloat((prev - itemTotal).toFixed(2)));
+      setBudgetBreakdown((prev) => {
+        const newSubtotal = prev.subtotal - itemTotal;
+        const newIvaAmount = newSubtotal * prev.iva_rate;
+        return {
+          ...prev,
+          subtotal: newSubtotal,
+          iva_amount: newIvaAmount,
+          total: newSubtotal + newIvaAmount
+        };
+      });
     }
 
     try {
@@ -90,11 +132,21 @@ export function ItineraryProvider({ travelerId, children }) {
         method: 'DELETE',
       });
       await readJsonResponse(res, 'Error eliminando item');
-      await fetchItinerary();
+      await fetchItinerary(); // Sincronizamos
       return { ok: true };
     } catch (err) {
+      // Revertir
       if (itemTotal !== null) {
-        setTotal((prev) => parseFloat((prev + itemTotal).toFixed(2)));
+        setBudgetBreakdown((prev) => {
+          const newSubtotal = prev.subtotal + itemTotal;
+          const newIvaAmount = newSubtotal * prev.iva_rate;
+          return {
+            ...prev,
+            subtotal: newSubtotal,
+            iva_amount: newIvaAmount,
+            total: newSubtotal + newIvaAmount
+          };
+        });
       }
       return { error: err.message };
     }
@@ -134,7 +186,8 @@ export function ItineraryProvider({ travelerId, children }) {
     <ItineraryContext.Provider value={{
       travelerId,
       items,
-      total,
+      budgetBreakdown, // <--- EXPORTAMOS EL DESGLOSE COMPLETO
+      total: budgetBreakdown.total, // Mantenemos "total" por si algún otro componente antiguo lo usa
       loading,
       error,
       addItem,

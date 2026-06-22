@@ -1,21 +1,22 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel, field_validator
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from typing import Optional
+import urllib.parse
 
 from security import get_password_hash, verify_password
 from auth_utils import generate_token, validate_token, revoke_token
 from budget_utils import calculate_budget_total
 from notification_utils import send_provider_status_email
 
-# --- 1. IMPORTAR BD Y MODELOS DESDE SUS ARCHIVOS ---
 from database import engine, SessionLocal, Base
-from models import User, ProviderDetail, TourService, Itinerary, ItineraryItem
 
-# Crear las tablas si no existen usando los modelos importados
+
+from models import User, ProviderDetail, TourService, Itinerary, ItineraryItem, ProviderNotification
+
 Base.metadata.create_all(bind=engine)
 
 def ensure_schema_compatibility():
@@ -42,6 +43,11 @@ def ensure_schema_compatibility():
             "SET provider_status = 'aprobado' "
             "WHERE provider_status = 'pendiente' "
             "AND (role != 'PROVIDER' OR is_verified = TRUE)"
+        ))
+        connection.execute(text(
+            "ALTER TABLE services "
+            "ADD COLUMN IF NOT EXISTS capacity INT NOT NULL DEFAULT 10 "
+            "CHECK (capacity > 0)"
         ))
 
 ensure_schema_compatibility()
@@ -166,17 +172,32 @@ class ItineraryItemResponse(BaseModel):
     service_name: str
     service_price: float
     added_at: str
+class BudgetBreakdown(BaseModel):
+    subtotal: float
+    iva_rate: float
+    iva_amount: float
+    total: float
+
+class ItineraryItemResponse(BaseModel):
+    id: int
+    service_id: int
+    quantity: int
+    dia_asignado: int
+    service_name: str
+    service_price: float
+    added_at: str
+
 
 class ItineraryResponse(BaseModel):
     id: int
     traveler_id: int
     items: list[ItineraryItemResponse]
-    total_budget: float
+    budget_breakdown: BudgetBreakdown
     created_at: str
     updated_at: str
 
 class BudgetResponse(BaseModel):
-    total_budget: float
+    budget_breakdown: BudgetBreakdown 
     item_count: int
 
 # 4. Inicializar FastAPI
@@ -371,7 +392,8 @@ def create_provider_service(provider_id: int, payload: TourServiceCreate, db: Se
         image_url=payload.image_url,
         city=payload.city,
         category=payload.category,
-        status=payload.status
+        status=payload.status,
+        capacity=payload.capacity
     )
     db.add(service)
     db.commit()
@@ -397,6 +419,7 @@ def update_provider_service(provider_id: int, service_id: int, payload: TourServ
     service.city = payload.city
     service.category = payload.category
     service.status = payload.status
+    service.capacity = payload.capacity
 
     db.commit()
     db.refresh(service)
@@ -583,11 +606,7 @@ def get_or_create_itinerary(traveler_id: int, db: Session) -> Itinerary:
         db.refresh(itinerary)
     return itinerary
 
-def calculate_itinerary_total(itinerary: Itinerary, db: Session) -> float:
-    """
-    Calcula el total presupuestado del itinerario usando Decimal para precisión exacta.
-    Evita errores de redondeo inherentes a los cálculos con float.
-    """
+def get_itinerary_budget_breakdown(itinerary: Itinerary, db: Session) -> dict:
     budget_entries = []
     for item in itinerary.items:
         service = db.query(TourService).filter(TourService.id == item.service_id).first()
@@ -596,12 +615,11 @@ def calculate_itinerary_total(itinerary: Itinerary, db: Session) -> float:
                 "price": service.price,
                 "quantity": item.quantity,
             })
+    return calculate_budget_total(budget_entries)
 
-    return float(calculate_budget_total(budget_entries))
 
 @app.get("/api/traveler/{traveler_id}/itinerary", response_model=ItineraryResponse)
 def get_traveler_itinerary(traveler_id: int, db: Session = Depends(get_db)):
-    """Obtiene el itinerario del viajero con todos los servicios y el total presupuestado"""
     get_traveler_or_404(traveler_id, db)
     itinerary = get_or_create_itinerary(traveler_id, db)
     
@@ -619,16 +637,34 @@ def get_traveler_itinerary(traveler_id: int, db: Session = Depends(get_db)):
                 added_at=item.added_at.isoformat()
             ))
     
-    total_budget = calculate_itinerary_total(itinerary, db)
-    
+    breakdown_dict = get_itinerary_budget_breakdown(itinerary, db)
+
     return ItineraryResponse(
         id=itinerary.id,
         traveler_id=itinerary.traveler_id,
         items=items,
-        total_budget=total_budget,
+        budget_breakdown=breakdown_dict, # <-- IVA Integrado
         created_at=itinerary.created_at.isoformat(),
         updated_at=itinerary.updated_at.isoformat()
+    
     )
+
+@app.get("/api/traveler/{traveler_id}/itinerary/budget", response_model=BudgetResponse)
+def get_traveler_budget(traveler_id: int, db: Session = Depends(get_db)):
+    get_traveler_or_404(traveler_id, db)
+    itinerary = get_or_create_itinerary(traveler_id, db)
+    
+    breakdown_dict = get_itinerary_budget_breakdown(itinerary, db)
+    return BudgetResponse(budget_breakdown=breakdown_dict, item_count=len(itinerary.items))
+
+
+@app.post("/api/traveler/{traveler_id}/itinerary/budget/calculate", response_model=BudgetResponse)
+def calculate_traveler_budget(traveler_id: int, db: Session = Depends(get_db)):
+    get_traveler_or_404(traveler_id, db)
+    itinerary = get_or_create_itinerary(traveler_id, db)
+
+    breakdown_dict = get_itinerary_budget_breakdown(itinerary, db)
+    return BudgetResponse(budget_breakdown=breakdown_dict, item_count=len(itinerary.items))
 
 @app.post("/api/traveler/{traveler_id}/itinerary/items", response_model=ItineraryItemResponse)
 def add_service_to_itinerary(traveler_id: int, payload: AddItineraryItemRequest, db: Session = Depends(get_db)):
@@ -643,6 +679,9 @@ def add_service_to_itinerary(traveler_id: int, payload: AddItineraryItemRequest,
     # Validar cantidad
     if payload.quantity <= 0:
         raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0")
+
+    if payload.quantity > service.capacity:
+        raise HTTPException(status_code=400, detail=f"Solo puedes solicitar hasta {service.capacity} cupos.")
     
     # Obtener o crear itinerario
     itinerary = get_or_create_itinerary(traveler_id, db)
@@ -654,6 +693,8 @@ def add_service_to_itinerary(traveler_id: int, payload: AddItineraryItemRequest,
     ).first()
     
     if existing_item:
+        if (existing_item.quantity + payload.quantity) > service.capacity:
+            raise HTTPException(status_code=400, detail=f"Límite excedido. Ya tienes {existing_item.quantity} en tu itinerario y el máximo es {service.capacity}.")
         # Si ya existe, actualizar la cantidad
         existing_item.quantity += payload.quantity
         item = existing_item
@@ -771,4 +812,89 @@ def calculate_traveler_budget(traveler_id: int, db: Session = Depends(get_db)):
     return BudgetResponse(
         total_budget=calculate_itinerary_total(itinerary, db),
         item_count=len(itinerary.items)
+    )
+
+# ==================== HU08: Solicitud de Reserva y Contacto ====================
+
+class ProviderContactInfo(BaseModel):
+    provider_id: int
+    business_name: str
+    phone: str | None
+    whatsapp_url: str
+    services_count: int
+
+class CheckoutItineraryResponse(BaseModel):
+    message: str
+    providers_contacted: int
+    contacts: list[ProviderContactInfo]
+
+@app.post("/api/traveler/{traveler_id}/itinerary/checkout", response_model=CheckoutItineraryResponse)
+def checkout_itinerary(traveler_id: int, db: Session = Depends(get_db)):
+    get_traveler_or_404(traveler_id, db)
+    itinerary = db.query(Itinerary).filter(Itinerary.traveler_id == traveler_id).first()
+    
+    if not itinerary or not itinerary.items:
+        raise HTTPException(status_code=400, detail="El itinerario está vacío. No hay nada que contratar.")
+
+    # 1. Agrupar items por proveedor
+    provider_groups = {}
+    for item in itinerary.items:
+        service = db.query(TourService).filter(TourService.id == item.service_id).first()
+        if service:
+            prov_id = service.provider_id
+            if prov_id not in provider_groups:
+                provider_groups[prov_id] = []
+            provider_groups[prov_id].append({
+                "service_name": service.name,
+                "quantity": item.quantity,
+                "day": item.dia_asignado
+            })
+
+    contacts_info = []
+
+    # 2. Generar alertas y links por cada proveedor
+    for prov_id, services in provider_groups.items():
+        provider = db.query(User).filter(User.id == prov_id).first()
+        provider_detail = db.query(ProviderDetail).filter(ProviderDetail.user_id == prov_id).first()
+        
+        business_name = provider_detail.business_name if provider_detail else provider.name
+        phone = provider_detail.phone if provider_detail and provider_detail.phone else ""
+
+        # Construir mensaje resumen
+        message_lines = [f"Hola {business_name}, me gustaría reservar los siguientes servicios de mi itinerario en SpondyTravel:"]
+        for s in services:
+            message_lines.append(f"- {s['quantity']}x {s['service_name']} (Día {s['day']})")
+        
+        full_message = "\n".join(message_lines)
+
+        # Crear notificación interna en la BD (CA3)
+        notification = ProviderNotification(
+            provider_id=prov_id,
+            traveler_id=traveler_id,
+            itinerary_id=itinerary.id,
+            message=full_message
+        )
+        db.add(notification)
+
+        # Generar URL de WhatsApp
+        whatsapp_url = ""
+        if phone:
+            clean_phone = ''.join(filter(str.isdigit, phone))
+            encoded_message = urllib.parse.quote(full_message)
+            whatsapp_url = f"https://wa.me/{clean_phone}?text={encoded_message}"
+
+        contacts_info.append(ProviderContactInfo(
+            provider_id=prov_id,
+            business_name=business_name,
+            phone=phone,
+            whatsapp_url=whatsapp_url,
+            services_count=len(services)
+        ))
+
+    db.commit()
+
+    return CheckoutItineraryResponse(
+        message="Solicitudes de reserva generadas exitosamente",
+        providers_contacted=len(provider_groups),
+        contacts=contacts_info
     )

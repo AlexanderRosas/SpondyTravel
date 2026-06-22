@@ -1,41 +1,39 @@
 import { useItinerary } from '../context/ItineraryContext';
 
 export default function StickyBudgetBar() {
-  // Extraemos budgetBreakdown en lugar del antiguo 'total'
   const { budgetBreakdown, loading, items } = useItinerary();
+  const ivaPercentage = (budgetBreakdown?.iva_rate * 100).toFixed(0) || 15;
 
-  // Calculamos el porcentaje entero para mostrarlo (ej. 0.15 -> 15)
-  const ivaPercentage = (budgetBreakdown.iva_rate * 100).toFixed(0);
+  if (!budgetBreakdown) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      <div className="bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-lg flex items-center gap-5 transition-all">
+    <div className="fixed bottom-6 right-6 z-40">
+      <div className="bg-white border border-slate-200 rounded-2xl px-6 py-4 shadow-2xl flex items-center gap-6">
         
-        {/* Desglose: Subtotal e IVA (Se oculta en pantallas muy pequeñas para no romper el diseño) */}
-        <div className="hidden sm:flex flex-col text-xs text-gray-500 border-r border-gray-200 pr-5">
-          <div className="flex justify-between gap-4">
-            <span>Subtotal:</span>
-            <span>${loading ? '...' : budgetBreakdown.subtotal.toFixed(2)}</span>
+        {/* Desglose de Costo e IVA */}
+        <div className="flex flex-col text-sm text-slate-600 border-r border-slate-200 pr-6 space-y-1">
+          <div className="flex justify-between gap-6">
+            <span>Costo Base:</span>
+            <span className="font-medium text-slate-800">${loading ? '...' : budgetBreakdown.subtotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between gap-4">
+          <div className="flex justify-between gap-6">
             <span>IVA ({ivaPercentage}%):</span>
-            <span>${loading ? '...' : budgetBreakdown.iva_amount.toFixed(2)}</span>
+            <span className="font-medium text-slate-800">${loading ? '...' : budgetBreakdown.iva_amount.toFixed(2)}</span>
           </div>
         </div>
 
-        {/* Total Principal */}
+        {/* Total Final */}
         <div>
-          <p className="text-xs text-gray-500">Total a pagar</p>
-          <p className="text-xl font-bold text-indigo-600">
+          <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Total a pagar</p>
+          <p className="text-2xl font-bold text-indigo-600">
             ${loading ? '...' : budgetBreakdown.total.toFixed(2)}
           </p>
         </div>
 
-        {/* Contador de Ítems */}
-        <div className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
+        {/* Contador */}
+        <div className="text-sm font-bold text-slate-700 bg-slate-100 px-4 py-2 rounded-full">
           {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
         </div>
-
       </div>
     </div>
   );

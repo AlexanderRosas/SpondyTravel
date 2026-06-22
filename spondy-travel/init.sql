@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS services (
     image_url VARCHAR(255),
     city VARCHAR(100),
     category VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'Activo'
+    status VARCHAR(50) DEFAULT 'Activo',
+    capacity INT NOT NULL DEFAULT 10 CHECK (capacity > 0) -- NUEVO: Límite de cupos
 );
 
 -- Itinerarios de Viajeros (HU03)
@@ -55,7 +56,18 @@ CREATE TABLE IF NOT EXISTS itinerary_items (
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Compatibilidad con bases existentes
+-- Buzón de Notificaciones para Proveedores (SPRINT 4)
+CREATE TABLE IF NOT EXISTS provider_notifications (
+    id SERIAL PRIMARY KEY,
+    provider_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    traveler_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    itinerary_id INT NOT NULL REFERENCES itineraries(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'Pendiente',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Compatibilidad con bases existentes (ALTERS de seguridad)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_status VARCHAR(50) DEFAULT 'pendiente';
 UPDATE users
@@ -76,6 +88,7 @@ ALTER TABLE provider_details ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS city VARCHAR(100);
 ALTER TABLE services ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Activo';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS capacity INT NOT NULL DEFAULT 10 CHECK (capacity > 0);
 ALTER TABLE itinerary_items ADD COLUMN IF NOT EXISTS dia_asignado INT NOT NULL DEFAULT 1 CHECK (dia_asignado > 0);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_details_user_id ON provider_details(user_id);
 
@@ -101,12 +114,12 @@ INSERT INTO provider_details (user_id, business_name, tax_id, phone, address, ci
 UPDATE users SET full_name = 'Admin Spondy' WHERE role = 'ADMIN';
 UPDATE users SET full_name = 'Christian Puchaicela' WHERE email = 'viajeroUno@spondytravel.com';
 
--- Insertar servicios de prueba vinculados a los proveedores
-INSERT INTO services (provider_id, name, description, price, image_url, city, category, status) VALUES 
-(2, 'Habitación Matrimonial Vista al Mar', 'Habitación amplia con balcón y desayuno incluido.', 85.00, 'https://images.unsplash.com/photo-1776761603930-e4509e386fbf?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Alojamiento', 'Activo'),
-(2, 'Tour de Snorkel', 'Tour guiado de 3 horas por los arrecifes locales.', 35.00, 'https://plus.unsplash.com/premium_photo-1716999413705-44286906c6c2?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Actividad', 'Activo'),
-(3, 'Excursión de Montaña', 'Trekking de día completo con guía y almuerzo incluido.', 55.00, 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Quito', 'Actividad', 'Activo'),
-(4, 'Safari en la Selva', 'Ruta de 2 días por la selva con avistamiento de fauna.', 120.00, 'https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2068&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Tena', 'Actividad', 'Activo'),
-(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', 'Esmeraldas', 'Actividad', 'Activo'),
-(2, 'Traslado privado nocturno', 'Traslado reservado desde el aeropuerto con conductor local.', 28.00, 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Transporte', 'Inactivo'),
-(4, 'Ruta cultural pendiente', 'Servicio activo de un proveedor aun no verificado para validar filtros.', 45.00, 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Cultura', 'Activo');
+-- Insertar servicios de prueba con CAPACIDAD incluida
+INSERT INTO services (provider_id, name, description, price, image_url, city, category, status, capacity) VALUES 
+(2, 'Habitación Matrimonial Vista al Mar', 'Habitación amplia con balcón y desayuno incluido.', 85.00, 'https://images.unsplash.com/photo-1776761603930-e4509e386fbf?q=80&w=1170&auto=format&fit=crop', 'Esmeraldas', 'Alojamiento', 'Activo', 5),
+(2, 'Tour de Snorkel', 'Tour guiado de 3 horas por los arrecifes locales.', 35.00, 'https://plus.unsplash.com/premium_photo-1716999413705-44286906c6c2?q=80&w=1170&auto=format&fit=crop', 'Esmeraldas', 'Actividad', 'Activo', 15),
+(3, 'Excursión de Montaña', 'Trekking de día completo con guía y almuerzo incluido.', 55.00, 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Actividad', 'Activo', 12),
+(4, 'Safari en la Selva', 'Ruta de 2 días por la selva con avistamiento de fauna.', 120.00, 'https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2068&auto=format&fit=crop', 'Tena', 'Actividad', 'Activo', 8),
+(6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop', 'Esmeraldas', 'Actividad', 'Activo', 6),
+(2, 'Traslado privado nocturno', 'Traslado reservado desde el aeropuerto con conductor local.', 28.00, 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Transporte', 'Inactivo', 4),
+(4, 'Ruta cultural pendiente', 'Servicio activo de un proveedor aun no verificado para validar filtros.', 45.00, 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Cultura', 'Activo', 20);

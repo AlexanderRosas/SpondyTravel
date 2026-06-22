@@ -21,6 +21,8 @@ async function readJsonResponse(response, fallbackMessage) {
 }
 
 export function ItineraryProvider({ travelerId, children }) {
+  const [budgetBreakdown, setBudgetBreakdown] = useState({ subtotal: 0, iva_rate: 0.15, iva_amount: 0, total: 0 });
+  const [checkoutData, setCheckoutData] = useState(null);
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,9 @@ export function ItineraryProvider({ travelerId, children }) {
       const data = await readJsonResponse(res, 'No se pudo obtener el itinerario');
       setItems((data.items || []).map(normalizeItem));
       setTotal(parseFloat(data.total_budget || 0));
+      if (data.budget_breakdown) {
+        setBudgetBreakdown(data.budget_breakdown);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,8 +63,12 @@ export function ItineraryProvider({ travelerId, children }) {
     if (!travelerId) return { error: 'No traveler id' };
 
     if (servicePrice !== null) {
-      setTotal((prev) => parseFloat((prev + servicePrice * quantity).toFixed(2)));
-    }
+    setBudgetBreakdown((prev) => {
+    const newSubtotal = prev.subtotal + (servicePrice * quantity);
+    const newIvaAmount = newSubtotal * prev.iva_rate;
+    return { ...prev, subtotal: newSubtotal, iva_amount: newIvaAmount, total: newSubtotal + newIvaAmount };
+  });
+  }
 
     try {
       const res = await fetch(`${API_BASE}/traveler/${travelerId}/itinerary/items`, {
@@ -78,11 +87,15 @@ export function ItineraryProvider({ travelerId, children }) {
     }
   };
 
-  const removeItem = async (itemId, itemTotal = null) => {
+const removeItem = async (itemId, itemTotal = null) => {
     if (!travelerId) return { error: 'No traveler id' };
 
     if (itemTotal !== null) {
-      setTotal((prev) => parseFloat((prev - itemTotal).toFixed(2)));
+      setBudgetBreakdown((prev) => {
+        const newSubtotal = prev.subtotal - itemTotal;
+        const newIvaAmount = newSubtotal * prev.iva_rate;
+        return { ...prev, subtotal: newSubtotal, iva_amount: newIvaAmount, total: newSubtotal + newIvaAmount };
+      });
     }
 
     try {
@@ -93,8 +106,12 @@ export function ItineraryProvider({ travelerId, children }) {
       await fetchItinerary();
       return { ok: true };
     } catch (err) {
-      if (itemTotal !== null) {
-        setTotal((prev) => parseFloat((prev + itemTotal).toFixed(2)));
+      if (itemTotal !== null) { // Revertir en caso de error
+        setBudgetBreakdown((prev) => {
+          const newSubtotal = prev.subtotal + itemTotal;
+          const newIvaAmount = newSubtotal * prev.iva_rate;
+          return { ...prev, subtotal: newSubtotal, iva_amount: newIvaAmount, total: newSubtotal + newIvaAmount };
+        });
       }
       return { error: err.message };
     }
@@ -130,21 +147,43 @@ export function ItineraryProvider({ travelerId, children }) {
     }
   };
 
+  const checkoutItinerary = async () => {
+    if (!travelerId) return { error: 'No traveler id' };
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/traveler/${travelerId}/itinerary/checkout`, {
+        method: 'POST',
+      });
+      const data = await readJsonResponse(res, 'Error al generar la solicitud de contacto');
+      setCheckoutData(data); // Guardamos la data con los links de WA
+      return { ok: true, data };
+    } catch (err) {
+      return { error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ItineraryContext.Provider value={{
       travelerId,
       items,
-      total,
+      budgetBreakdown, // IVA
+      total: budgetBreakdown.total, // Compatibilidad hacia atrás
       loading,
       error,
+      checkoutData, // Para el modal
       addItem,
       removeItem,
       updateItemDay,
+      checkoutItinerary, // Para el botón
       refresh: fetchItinerary,
     }}>
       {children}
     </ItineraryContext.Provider>
   );
+
+
 }
 
 export function useItinerary() {

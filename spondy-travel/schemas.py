@@ -37,6 +37,7 @@ class SearchServiceResult(BaseModel):
     status: str
     provider_full_name: str
     business_name: str | None = None
+    capacity: int
 
 class ApproveRequest(BaseModel):
     status: bool
@@ -65,6 +66,13 @@ class TourServiceCreate(BaseModel):
     city: str | None = None
     category: str | None = None
     status: str = "Activo"
+    capacity: int = 10
+    @field_validator('capacity')
+    @classmethod
+    def validate_capacity(cls, v):
+        if v <= 0:
+            raise ValueError("La capacidad debe ser de al menos 1")
+        return v
 
 class TourServiceUpdate(TourServiceCreate):
     pass
@@ -84,14 +92,45 @@ class ItineraryItemResponse(BaseModel):
     service_price: float
     added_at: str
 
+# --- NUEVO MODELO PARA EL DESGLOSE DE IVA ---
+class BudgetBreakdown(BaseModel):
+    subtotal: float
+    iva_rate: float
+    iva_amount: float
+    total: float
+
+class ItineraryItemResponse(BaseModel):
+    id: int
+    service_id: int
+    quantity: int
+    dia_asignado: int
+    service_name: str
+    service_price: float
+    added_at: str
+
+# Actualizado con IVA
 class ItineraryResponse(BaseModel):
     id: int
     traveler_id: int
     items: list[ItineraryItemResponse]
-    total_budget: float
+    budget_breakdown: BudgetBreakdown  # <-- IVA
     created_at: str
     updated_at: str
 
+# Actualizado con IVA
 class BudgetResponse(BaseModel):
-    total_budget: float
+    budget_breakdown: BudgetBreakdown  # <-- IVA
     item_count: int
+
+# --- ESQUEMAS SPRINT 4 (CHECKOUT B2B2C) ---
+class ProviderContactInfo(BaseModel):
+    provider_id: int
+    business_name: str
+    phone: str | None
+    whatsapp_url: str
+    services_count: int
+
+class CheckoutItineraryResponse(BaseModel):
+    message: str
+    providers_contacted: int
+    contacts: list[ProviderContactInfo]

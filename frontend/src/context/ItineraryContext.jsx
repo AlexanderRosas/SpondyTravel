@@ -24,14 +24,22 @@ export function ItineraryProvider({ travelerId, children }) {
   const [budgetBreakdown, setBudgetBreakdown] = useState({ subtotal: 0, iva_rate: 0.15, iva_amount: 0, total: 0 });
   const [checkoutData, setCheckoutData] = useState(null);
   const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
+  
+  // --- NUEVO ESTADO PARA EL DESGLOSE ---
+  const [budgetBreakdown, setBudgetBreakdown] = useState({
+    subtotal: 0,
+    iva_rate: 0.15,
+    iva_amount: 0,
+    total: 0
+  });
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchItinerary = async () => {
     if (!travelerId) {
       setItems([]);
-      setTotal(0);
+      setBudgetBreakdown({ subtotal: 0, iva_rate: 0.15, iva_amount: 0, total: 0 });
       setLoading(false);
       return;
     }
@@ -62,6 +70,7 @@ export function ItineraryProvider({ travelerId, children }) {
   const addItem = async (serviceId, quantity = 1, servicePrice = null) => {
     if (!travelerId) return { error: 'No traveler id' };
 
+    // Actualización optimista calculando el IVA
     if (servicePrice !== null) {
     setBudgetBreakdown((prev) => {
     const newSubtotal = prev.subtotal + (servicePrice * quantity);
@@ -77,11 +86,21 @@ export function ItineraryProvider({ travelerId, children }) {
         body: JSON.stringify({ service_id: serviceId, quantity }),
       });
       const item = normalizeItem(await readJsonResponse(res, 'Error agregando item'));
-      await fetchItinerary();
+      await fetchItinerary(); // Esto sincroniza con los datos reales del backend
       return { item };
     } catch (err) {
+      // Revertir actualización optimista en caso de error
       if (servicePrice !== null) {
-        setTotal((prev) => parseFloat((prev - servicePrice * quantity).toFixed(2)));
+        setBudgetBreakdown((prev) => {
+          const newSubtotal = prev.subtotal - (servicePrice * quantity);
+          const newIvaAmount = newSubtotal * prev.iva_rate;
+          return {
+            ...prev,
+            subtotal: newSubtotal,
+            iva_amount: newIvaAmount,
+            total: newSubtotal + newIvaAmount
+          };
+        });
       }
       return { error: err.message };
     }
@@ -90,6 +109,7 @@ export function ItineraryProvider({ travelerId, children }) {
 const removeItem = async (itemId, itemTotal = null) => {
     if (!travelerId) return { error: 'No traveler id' };
 
+    // Actualización optimista al eliminar
     if (itemTotal !== null) {
       setBudgetBreakdown((prev) => {
         const newSubtotal = prev.subtotal - itemTotal;
@@ -103,7 +123,7 @@ const removeItem = async (itemId, itemTotal = null) => {
         method: 'DELETE',
       });
       await readJsonResponse(res, 'Error eliminando item');
-      await fetchItinerary();
+      await fetchItinerary(); // Sincronizamos
       return { ok: true };
     } catch (err) {
       if (itemTotal !== null) { // Revertir en caso de error

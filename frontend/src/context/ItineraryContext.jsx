@@ -24,14 +24,7 @@ export function ItineraryProvider({ travelerId, children }) {
   const [budgetBreakdown, setBudgetBreakdown] = useState({ subtotal: 0, iva_rate: 0.15, iva_amount: 0, total: 0 });
   const [checkoutData, setCheckoutData] = useState(null);
   const [items, setItems] = useState([]);
-  
-  // --- NUEVO ESTADO PARA EL DESGLOSE ---
-  const [budgetBreakdown, setBudgetBreakdown] = useState({
-    subtotal: 0,
-    iva_rate: 0.15,
-    iva_amount: 0,
-    total: 0
-  });
+
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -50,7 +43,7 @@ export function ItineraryProvider({ travelerId, children }) {
       const res = await fetch(`${API_BASE}/traveler/${travelerId}/itinerary`);
       const data = await readJsonResponse(res, 'No se pudo obtener el itinerario');
       setItems((data.items || []).map(normalizeItem));
-      setTotal(parseFloat(data.total_budget || 0));
+      //setTotal(parseFloat(data.total_budget || 0));
       if (data.budget_breakdown) {
         setBudgetBreakdown(data.budget_breakdown);
       }

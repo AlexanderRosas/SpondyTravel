@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+﻿from datetime import datetime
+from pydantic import BaseModel, field_validator
 
 class LoginRequest(BaseModel):
     email: str
@@ -84,13 +85,6 @@ class AddItineraryItemRequest(BaseModel):
     service_id: int
     quantity: int = 1
 
-class ItineraryItemResponse(BaseModel):
-    id: int
-    service_id: int
-    quantity: int
-    service_name: str
-    service_price: float
-    added_at: str
 
 # --- NUEVO MODELO PARA EL DESGLOSE DE IVA ---
 class BudgetBreakdown(BaseModel):
@@ -134,3 +128,40 @@ class CheckoutItineraryResponse(BaseModel):
     message: str
     providers_contacted: int
     contacts: list[ProviderContactInfo]
+
+# ============================================================
+# SPRINT 5 - HU09
+# ESQUEMAS PARA EL TABLERO DE RESEÃ‘AS CRUZADAS
+# ============================================================
+
+class ReviewResponse(BaseModel):
+    """
+    InformaciÃ³n que serÃ¡ presentada en la tabla
+    administrativa de reseÃ±as.
+    """
+
+    id: int
+
+    reviewer_id: int
+    reviewer_name: str
+    reviewer_email: str
+
+    reviewed_user_id: int
+    reviewed_user_name: str
+    reviewed_user_email: str
+
+    rating: int
+    comment: str | None = None
+    review_type: str
+    is_active: bool
+    created_at: datetime
+
+
+class ReviewDeactivateResponse(BaseModel):
+    """
+    Respuesta de la baja lÃ³gica de una reseÃ±a.
+    """
+
+    message: str
+    review_id: int
+    is_active: bool

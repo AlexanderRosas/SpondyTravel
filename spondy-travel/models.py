@@ -69,3 +69,77 @@ class ProviderNotification(Base):
     message = Column(Text)
     status = Column(String, default="Pendiente")
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+# ============================================================
+# SPRINT 5 - HU09
+# TABLA PARA EL SISTEMA DE CALIFICACIONES CRUZADAS
+# ============================================================
+
+class Review(Base):
+    """
+    Representa una calificación realizada entre usuarios.
+    """
+
+    __tablename__ = "reviews"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    reviewer_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True
+    )
+
+    reviewed_user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True
+    )
+
+    rating = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=True)
+
+    review_type = Column(
+        String,
+        nullable=False,
+        index=True
+    )
+
+    is_active = Column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+
+    created_at = Column(
+        TIMESTAMP,
+        default=datetime.utcnow
+    )
+
+    deactivated_at = Column(
+        TIMESTAMP,
+        nullable=True
+    )
+
+    deactivated_by = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
+    reviewer = relationship(
+        "User",
+        foreign_keys=[reviewer_id]
+    )
+
+    reviewed_user = relationship(
+        "User",
+        foreign_keys=[reviewed_user_id]
+    )
+
+    administrator = relationship(
+        "User",
+        foreign_keys=[deactivated_by]
+    )

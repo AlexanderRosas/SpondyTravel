@@ -123,3 +123,89 @@ INSERT INTO services (provider_id, name, description, price, image_url, city, ca
 (6, 'Tour de Surf', 'Clases de surf con instructor profesional en la playa.', 40.00, 'https://images.unsplash.com/photo-1642219235453-55445eea1852?q=80&w=736&auto=format&fit=crop', 'Esmeraldas', 'Actividad', 'Activo', 6),
 (2, 'Traslado privado nocturno', 'Traslado reservado desde el aeropuerto con conductor local.', 28.00, 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Transporte', 'Inactivo', 4),
 (4, 'Ruta cultural pendiente', 'Servicio activo de un proveedor aun no verificado para validar filtros.', 45.00, 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1170&auto=format&fit=crop', 'Quito', 'Cultura', 'Activo', 20);
+
+
+-- ============================================================
+-- SPRINT 5 - HU09
+-- TABLA PARA EL SISTEMA DE CALIFICACIONES CRUZADAS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id SERIAL PRIMARY KEY,
+
+    -- Usuario que realiza la calificación.
+    reviewer_id INTEGER NOT NULL,
+
+    -- Usuario que recibe la calificación.
+    reviewed_user_id INTEGER NOT NULL,
+
+    -- Puntaje entre 1 y 5 estrellas.
+    rating INTEGER NOT NULL,
+
+    -- Comentario opcional de la reseña.
+    comment TEXT,
+
+    -- Dirección de la reseña:
+    -- TRAVELER_TO_PROVIDER o PROVIDER_TO_TRAVELER.
+    review_type VARCHAR(50) NOT NULL,
+
+    -- Permite ocultar una reseña sin eliminarla físicamente.
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    -- Fecha de creación de la reseña.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Fecha en la que el administrador dio de baja la reseña.
+    deactivated_at TIMESTAMP NULL,
+
+    -- Administrador que realizó la baja lógica.
+    deactivated_by INTEGER NULL,
+
+    -- Relaciones con la tabla users.
+    CONSTRAINT fk_reviews_reviewer
+        FOREIGN KEY (reviewer_id)
+        REFERENCES users(id),
+
+    CONSTRAINT fk_reviews_reviewed_user
+        FOREIGN KEY (reviewed_user_id)
+        REFERENCES users(id),
+
+    CONSTRAINT fk_reviews_deactivated_by
+        FOREIGN KEY (deactivated_by)
+        REFERENCES users(id),
+
+    -- La puntuación solo puede ser de 1 a 5 estrellas.
+    CONSTRAINT chk_reviews_rating
+        CHECK (rating BETWEEN 1 AND 5),
+
+    -- Solo se permiten los dos tipos de calificación cruzada.
+    CONSTRAINT chk_reviews_type
+        CHECK (
+            review_type IN (
+                'TRAVELER_TO_PROVIDER',
+                'PROVIDER_TO_TRAVELER'
+            )
+        ),
+
+    -- Un usuario no puede calificarse a sí mismo.
+    CONSTRAINT chk_reviews_different_users
+        CHECK (reviewer_id <> reviewed_user_id)
+);
+
+
+-- Índices para mejorar los filtros del tablero administrativo.
+
+CREATE INDEX IF NOT EXISTS idx_reviews_type
+    ON reviews(review_type);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_rating
+    ON reviews(rating);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_active
+    ON reviews(is_active);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewer
+    ON reviews(reviewer_id);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewed_user
+    ON reviews(reviewed_user_id);

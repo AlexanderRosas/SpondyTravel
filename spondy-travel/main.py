@@ -16,7 +16,12 @@ from database import engine, SessionLocal, Base
 
 
 from models import User, ProviderDetail, TourService, Itinerary, ItineraryItem, ProviderNotification
+# ============================================================
+# SPRINT 5 - HU09
+# IMPORTACIÓN DEL ROUTER ADMINISTRATIVO DE RESEÑAS
+# ============================================================
 
+from routers import admin
 Base.metadata.create_all(bind=engine)
 
 def ensure_schema_compatibility():
@@ -202,14 +207,26 @@ class BudgetResponse(BaseModel):
 
 # 4. Inicializar FastAPI
 app = FastAPI(title="Spondy Travel API")
+# ============================================================
+# SPRINT 5 - HU09
+# REGISTRO DEL ROUTER DE RESEÑAS CRUZADAS
+# ============================================================
+
+app.include_router(admin.router)
+# ============================================================
+# CONFIGURACIÓN CORS
+# Permite la comunicación entre React y FastAPI en desarrollo.
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://localhost:5174",
         "http://localhost:3000",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],

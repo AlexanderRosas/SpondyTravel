@@ -100,6 +100,7 @@ class SearchServiceResult(BaseModel):
     city: str | None = None
     category: str | None = None
     status: str
+    capacity: int
     provider_full_name: str
     business_name: str | None = None
 
@@ -141,7 +142,8 @@ class TourServiceCreate(BaseModel):
     city: str | None = None
     category: str | None = None
     status: str = "Activo"
-    
+    capacity: int = 10
+
     @field_validator('price')
     @classmethod
     def validate_price(cls, v):
@@ -155,6 +157,13 @@ class TourServiceCreate(BaseModel):
             if decimals > 2:
                 raise ValueError("El precio no puede tener más de 2 decimales")
         return round(v, 2)
+
+    @field_validator('capacity')
+    @classmethod
+    def validate_capacity(cls, v):
+        if v <= 0:
+            raise ValueError('La capacidad debe ser mayor que 0')
+        return v
 
 class TourServiceUpdate(TourServiceCreate):
     pass
@@ -558,6 +567,7 @@ def get_verified_services(db: Session = Depends(get_db)):
             city=service.city,
             category=service.category,
             status=service.status,
+            capacity=service.capacity,
             provider_full_name=user.full_name or user.name or user.email,
             business_name=provider.business_name if provider else None
         ))
@@ -599,6 +609,7 @@ def search_services(city: str = None, category: str = None, max_price: float = N
             city=service.city,
             category=service.category,
             status=service.status,
+            capacity=service.capacity,
             provider_full_name=user.full_name or user.name or user.email,
             business_name=provider.business_name if provider else None
         ))

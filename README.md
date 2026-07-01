@@ -21,46 +21,86 @@ Para ejecutar este proyecto de manera local, el revisor debe tener instalado:
 
 ## 🚀 Guía de Instalación y Ejecución
 
-El proyecto está dividido en tres capas. Se recomienda abrir **tres terminales separadas** en la carpeta raíz del proyecto para levantar cada entorno.
+El proyecto está dividido en tres componentes principales: base de datos, backend y frontend. La forma más simple de levantarlos juntos es usar el script raíz `npm run dev`.
 
-### 1. Levantar la Base de Datos (Docker)
-El sistema incluye un archivo de *seeding* (`init.sql`) que creará las tablas e inyectará los datos de prueba automáticamente.
+### 1. Preparar el proyecto
 ```bash
-# En la terminal (raíz del proyecto), ejecuta:
-docker-compose up -d
-```
-> La base de datos estará disponible en `localhost:5432`.
-
-### 2. Levantar el Backend (FastAPI)
-```bash
-# 1. Crear el entorno virtual
-python -m venv venv
-
-# 2. Activar el entorno virtual
-# En Windows (CMD/PowerShell): .\venv\Scripts\activate
-# En Windows (Git Bash): source venv/Scripts/activate
-# En Mac/Linux: source venv/bin/activate
-
-# 3. Instalar dependencias
-pip install -r requirements.txt
-
-# 4. Levantar el servidor
-uvicorn main:app --reload
-```
-> El backend estará escuchando en `http://localhost:8000`.
-
-### 3. Levantar el Frontend (React + Vite)
-```bash
-# 1. Navegar a la carpeta del frontend
-cd frontend
-
-# 2. Instalar módulos de Node (solo la primera vez)
+# En la raíz del proyecto
 npm install
+```
 
-# 3. Iniciar el servidor de desarrollo
+### 2. Instalar dependencias del backend
+```bash
+cd spondy-travel
+python -m venv venv
+# En Windows PowerShell:
+.\venv\Scripts\Activate.ps1
+# En Windows CMD:
+.\venv\Scripts\activate
+# En Git Bash / Linux / macOS:
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 3. Instalar dependencias del frontend
+```bash
+cd ../frontend
+npm install
+```
+
+### 4. Ejecutar todo junto
+Desde la raíz del proyecto:
+
+#### Windows PowerShell
+```powershell
 npm run dev
 ```
-> El frontend estará disponible en `http://localhost:5173`.
+
+#### Windows CMD
+```cmd
+npm run dev
+```
+
+#### macOS / Linux / Git Bash
+```bash
+npm run dev
+```
+
+Esto ejecuta automáticamente:
+* `npm run dev:db` — inicia la base de datos Docker con `docker-compose`
+* `npm run dev:backend` — inicia el backend FastAPI
+* `npm run dev:frontend` — inicia el frontend React/Vite
+
+> Si no quieres usar `npm run dev` desde la raíz, puedes ejecutar cada componente por separado.
+
+### Ejecución separada
+Base de datos:
+```bash
+cd spondy-travel
+docker-compose up
+```
+Backend:
+```bash
+cd spondy-travel
+.\venv\Scripts\activate  # o source venv/bin/activate
+uvicorn main:app --reload
+```
+Frontend:
+```bash
+cd frontend
+npm run dev
+```
+
+---
+
+## 🧪 Pruebas del Backend
+El backend usa `pytest`. Ejecuta las pruebas desde la carpeta `spondy-travel` con el entorno virtual activado.
+
+```bash
+cd spondy-travel
+.\venv\Scripts\activate  # o source venv/bin/activate
+pytest
+```
 
 ---
 
@@ -70,6 +110,8 @@ El sistema viene precargado con datos para facilitar la validación de la **Hist
 * **Rol:** Proveedor Turístico
 * **Correo:** `proveedor@spondytravel.com`
 * **Contraseña:** `123456`
+
+* **Admin de prueba:** `admin1@spondy.com` / `admin1`
 
 ---
 

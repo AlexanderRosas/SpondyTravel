@@ -26,6 +26,7 @@ const emptyService = {
   city: '',
   category: '',
   status: 'Activo',
+  capacity: 10,
 };
 
 async function readJsonResponse(response) {
@@ -164,6 +165,7 @@ export default function Dashboard({ user, onLogout }) {
       city: service.city || '',
       category: service.category || '',
       status: service.status || 'Activo',
+      capacity: service.capacity ?? 10,
     });
     setServiceModalOpen(true);
     setError(null);
@@ -184,6 +186,7 @@ export default function Dashboard({ user, onLogout }) {
     const payload = {
       ...serviceForm,
       price: Number(serviceForm.price),
+      capacity: Number(serviceForm.capacity),
     };
 
     try {
@@ -405,14 +408,19 @@ export default function Dashboard({ user, onLogout }) {
                     <p className="text-sm text-gray-600 mb-4 line-clamp-2">{servicio.description}</p>
 
                     <div className="pt-4 border-t border-slate-100">
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-3 mb-4">
                         <div>
                           <p className="text-xs text-gray-500 font-medium">Precio</p>
                           <p className="text-2xl font-bold text-indigo-600">
                             ${parseFloat(servicio.price).toFixed(2)}
                           </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-2 rounded-full">
+                          <span>Cupos:</span>
+                          <span>{servicio.capacity ?? 'N/A'}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
                           <button
                             onClick={() => openEditService(servicio)}
                             className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
@@ -432,7 +440,6 @@ export default function Dashboard({ user, onLogout }) {
                       </div>
                     </div>
                   </div>
-                </div>
               );
             })}
           </div>
@@ -472,6 +479,7 @@ export default function Dashboard({ user, onLogout }) {
             <form onSubmit={saveService} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
               <Field label="Nombre" name="name" value={serviceForm.name} onChange={handleServiceChange} required />
               <Field label="Precio" name="price" type="number" min="0.01" step="0.01" value={serviceForm.price} onChange={handleServiceChange} required />
+              <Field label="Cupos disponibles" name="capacity" type="number" min="1" step="1" value={serviceForm.capacity} onChange={handleServiceChange} required />
               <Field label="Ciudad" name="city" value={serviceForm.city} onChange={handleServiceChange} />
               <Field label="Categoria" name="category" value={serviceForm.category} onChange={handleServiceChange} />
               <Field label="Imagen URL" name="image_url" value={serviceForm.image_url} onChange={handleServiceChange} />

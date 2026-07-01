@@ -95,8 +95,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_details_user_id ON provider_detai
 -- DATOS DE PRUEBA
 INSERT INTO users (name, full_name, email, password, role, is_verified, provider_status) VALUES 
 ('Administrador', 'Admin Spondy', 'admin@spondy.com', '$2b$12$OSlpUUhHKJHmCyKFMQfGPO8zdkGLLjZ.W9.3y99Brx8SZ0uCWAxBG', 'ADMIN', TRUE, 'aprobado'),
+('Administrador 1', 'Admin1 Spondy', 'admin1@spondy.com', '$2b$12$/NYxSQpa.ug8pGmvt6aXBe5K5lGSHdbfbr.i9Iwb.6HB7h2x.qR3e', 'ADMIN', TRUE, 'aprobado'),
 ('Proveedor Aprobado', 'Proveedor Aprobado', 'proveedorAprobado@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', TRUE, 'aprobado'),
-('Proveedor Aprobado Dos', 'Proveedor Aprobado Dos', 'proveedorAprobadoDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', TRUE, 'aprobado'),
 ('Proveedor Pendiente Uno', 'Proveedor Pendiente Uno', 'proveedorPendienteUno@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE, 'pendiente'),
 ('Proveedor Pendiente Dos', 'Proveedor Pendiente Dos', 'proveedorPendienteDos@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE, 'pendiente'),
 ('Proveedor Pendiente Tres', 'Proveedor Pendiente Tres', 'proveedorPendienteTres@spondytravel.com', '$2b$12$.uLOn1GSMz21aQk/i.ZH4ONI0ORGxRESgHZ.nZbV3an2u3smpR29y', 'PROVIDER', FALSE, 'pendiente'),

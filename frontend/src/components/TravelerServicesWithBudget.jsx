@@ -166,18 +166,21 @@ export default function TravelerServicesWithBudget({ user, onLogout }) {
                     <p className="text-sm text-gray-600 mb-3 line-clamp-2">{servicio.description}</p>
                     <div className="text-sm text-gray-500 mb-4">Proveedor: {servicio.provider_full_name}</div>
 
-                    {/* Mostramos la capacidad del servicio */}
-                    <div className="text-xs font-medium text-emerald-600 bg-emerald-50 w-fit px-2 py-1 rounded mb-4">
-                      Cupos disponibles: {servicio.capacity}
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
+                        Cupos: {servicio.capacity ?? 0}
+                      </span>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${servicio.capacity > 0 ? 'text-blue-700 bg-blue-100' : 'text-red-700 bg-red-100'}`}>
+                        {servicio.capacity > 0 ? 'Disponible' : 'Agotado'}
+                      </span>
                     </div>
 
-                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
                       <div>
                         <p className="text-xs text-gray-500">Precio unitario</p>
                         <p className="text-2xl font-bold text-indigo-600">${parseFloat(servicio.price).toFixed(2)}</p>
                       </div>
                       
-                      {/* Botón que ahora maneja los errores (límite de cupos) */}
                       <ServiceReserveButton service={servicio} />
                     </div>
                   </div>
@@ -217,16 +220,22 @@ function ServiceReserveButton({ service }) {
     setAdding(false);
   };
 
+  const isSoldOut = service.capacity <= 0;
+
   return (
     <button
       onClick={handleReserve}
-      disabled={adding}
+      disabled={adding || isSoldOut}
       className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-md active:scale-95 ${
-        adding ? 'bg-indigo-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+        isSoldOut
+          ? 'bg-slate-300 cursor-not-allowed text-slate-500'
+          : adding
+          ? 'bg-indigo-400 cursor-not-allowed text-white'
+          : 'bg-indigo-600 hover:bg-indigo-700 text-white'
       }`}
-      aria-label={`Reservar ${service.name}`}
+      aria-label={isSoldOut ? `Servicio agotado` : `Reservar ${service.name}`}
     >
-      {adding ? '...' : 'Reservar'}
+      {isSoldOut ? 'Agotado' : adding ? '...' : 'Reservar'}
     </button>
   );
 }

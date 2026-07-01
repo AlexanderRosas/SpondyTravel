@@ -1,0 +1,26 @@
+{
+  "name": "spondytravel",
+  "version": "1.0.0",
+  "description": "**Spondy Travel** es una plataforma web (B2B2C) que centraliza la oferta de proveedores turísticos locales y permite a los viajeros diseñar itinerarios personalizados con un calculador de presupuesto en tiempo real.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:db\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:db": "cd spondy-travel && docker-compose up",
+    "dev:backend": "cd spondy-travel && uvicorn main:app --reload",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlexanderRosas/SpondyTravel.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AlexanderRosas/SpondyTravel/issues"
+  },
+  "homepage": "https://github.com/AlexanderRosas/SpondyTravel#readme",
+  "dependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
